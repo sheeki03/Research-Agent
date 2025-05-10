@@ -1,0 +1,11 @@
+admin:
+  password: $2b$12$cfGyz/XVaadvKk9HKl60OOWsnp0B0VrNfiEDEIA6Qygp6BJ1cJlgq
+  rate_limit: 100
+  role: admin
+researcher:
+  password: $2b$12$nuzCC7wc.YukHNY6tduw4OJ/Mh99B/97x807cW.FpgDxWV2OjCrea
+  rate_limit: 50
+  role: researcher
+sheeki:
+  password: $2b$12$goRL2nQQyHGPBo.01PrYB.uGmekNCkSSjgnVT9mARi9sXLJqVoVBa
+  role: researcher
