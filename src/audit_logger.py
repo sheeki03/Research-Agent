@@ -2,12 +2,17 @@ import logging
 import os
 from pathlib import Path
 
-# Ensure logs directory exists (assuming config.py or main.py creates it, 
-# but good to have a check here too if this module is used independently)
-LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
+# Define absolute path within the container explicitly
+APP_DIR = Path(__file__).resolve().parent.parent
+LOGS_DIR = APP_DIR / "logs"
 AUDIT_LOG_FILE = LOGS_DIR / "audit.log"
+
+# Explicitly create the directory *before* handler setup
+try:
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"INFO: Ensured logs directory exists: {LOGS_DIR}") # Console log confirmation
+except Exception as e:
+    print(f"ERROR: Failed to create logs directory {LOGS_DIR}: {e}")
 
 # Configure the audit logger
 # This logger will be used specifically for audit trails.
@@ -15,28 +20,45 @@ AUDIT_LOG_FILE = LOGS_DIR / "audit.log"
 logger = logging.getLogger("audit")
 logger.setLevel(logging.INFO) # Capture info and higher level messages
 
-# Create a file handler for the audit log
-# Use a rotating file handler if logs are expected to be large over time
-# For now, a simple FileHandler will suffice.
-file_handler = logging.FileHandler(AUDIT_LOG_FILE, encoding='utf-8')
+# --- File Handler Setup with Error Handling ---
+file_handler = None
+try:
+    file_handler = logging.FileHandler(AUDIT_LOG_FILE, encoding='utf-8')
+    # Define formatter here
+    formatter = logging.Formatter(
+        "%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s", 
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    file_handler.setFormatter(formatter)
+    print(f"INFO: FileHandler configured for {AUDIT_LOG_FILE}") # Console log confirmation
+except Exception as e:
+    print(f"ERROR: Failed to initialize FileHandler for {AUDIT_LOG_FILE}: {e}")
+    # file_handler remains None
 
-# --- Add StreamHandler for Streamlit Cloud logs --- 
+# --- Stream Handler Setup --- 
 stream_handler = logging.StreamHandler() # Defaults to stderr
-# --- End StreamHandler --- 
-
-# Define the log format
-# Example: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: LOGIN | DETAILS: Successful login
-# New Example: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: WEB_RESEARCH | LINKS: http://a.com, http://b.com | DETAILS: Submitted research
-# Added MODEL field: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: REPORT_GEN | MODEL: openai/gpt-4o | LINKS: ... | DETAILS: ...
-formatter = logging.Formatter("%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s", 
-                              datefmt="%Y-%m-%d %H:%M:%S")
-file_handler.setFormatter(formatter)
+# Ensure formatter is defined even if file_handler failed, for stream_handler
+if 'formatter' not in locals():
+     formatter = logging.Formatter(
+        "%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
 stream_handler.setFormatter(formatter) # Use the same format for console output
+print("INFO: StreamHandler configured.") # Console log confirmation
 
-# Add the handler to the logger
+# Add the handlers to the logger if they haven't been added yet
+# Check prevents duplicate handlers if this module is reloaded
 if not logger.handlers:
-    logger.addHandler(file_handler)
-    logger.addHandler(stream_handler) # Add the stream handler as well
+    if file_handler: # Only add if successfully initialized
+        logger.addHandler(file_handler)
+        print("INFO: FileHandler added to logger.")
+    else:
+        print("WARNING: FileHandler was not initialized, skipping addHandler.")
+    
+    # Check if stream handler already added (less likely to cause issues but good practice)
+    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+        logger.addHandler(stream_handler)
+        print("INFO: StreamHandler added to logger.")
 
 # Helper function to log audit events
 def log_audit_event(username: str, 
