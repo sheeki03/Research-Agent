@@ -7,18 +7,20 @@ APP_DIR = Path(__file__).resolve().parent.parent
 LOGS_DIR = APP_DIR / "logs"
 AUDIT_LOG_FILE = LOGS_DIR / "audit.log"
 
-# Explicitly create the directory *before* handler setup
-try:
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"INFO: Ensured logs directory exists: {LOGS_DIR}") # Console log confirmation
-except Exception as e:
-    print(f"ERROR: Failed to create logs directory {LOGS_DIR}: {e}")
-
 # Configure the audit logger
 # This logger will be used specifically for audit trails.
 
 logger = logging.getLogger("audit")
 logger.setLevel(logging.INFO) # Capture info and higher level messages
+
+# Explicitly create the directory *before* handler setup
+try:
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    # Use logger.info for successful setup steps
+    logger.info(f"Ensured logs directory exists: {LOGS_DIR}")
+except Exception as e:
+    # Use logger.error for setup failures
+    logger.error(f"Failed to create logs directory {LOGS_DIR}: {e}")
 
 # --- File Handler Setup with Error Handling ---
 file_handler = None
@@ -30,9 +32,9 @@ try:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     file_handler.setFormatter(formatter)
-    print(f"INFO: FileHandler configured for {AUDIT_LOG_FILE}") # Console log confirmation
+    logger.info(f"FileHandler configured for {AUDIT_LOG_FILE}") # Console log confirmation
 except Exception as e:
-    print(f"ERROR: Failed to initialize FileHandler for {AUDIT_LOG_FILE}: {e}")
+    logger.error(f"Failed to initialize FileHandler for {AUDIT_LOG_FILE}: {e}")
     # file_handler remains None
 
 # --- Stream Handler Setup --- 
@@ -44,21 +46,22 @@ if 'formatter' not in locals():
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 stream_handler.setFormatter(formatter) # Use the same format for console output
-print("INFO: StreamHandler configured.") # Console log confirmation
+logger.info("StreamHandler configured.") # Console log confirmation
 
 # Add the handlers to the logger if they haven't been added yet
 # Check prevents duplicate handlers if this module is reloaded
 if not logger.handlers:
     if file_handler: # Only add if successfully initialized
         logger.addHandler(file_handler)
-        print("INFO: FileHandler added to logger.")
+        logger.info("FileHandler added to logger.")
     else:
-        print("WARNING: FileHandler was not initialized, skipping addHandler.")
+        # Use logger.warning for non-critical setup issues
+        logger.warning("FileHandler was not initialized, skipping addHandler.")
     
     # Check if stream handler already added (less likely to cause issues but good practice)
     if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
         logger.addHandler(stream_handler)
-        print("INFO: StreamHandler added to logger.")
+        logger.info("StreamHandler added to logger.")
 
 # Helper function to log audit events
 def log_audit_event(username: str, 
