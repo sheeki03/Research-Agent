@@ -27,7 +27,8 @@ from src.config import (
     OUTPUT_DIR,
     DEFAULT_PROMPTS,
     USERS_CONFIG_PATH,
-    SYSTEM_PROMPT
+    SYSTEM_PROMPT,
+    OPENROUTER_PRIMARY_MODEL # Import the primary model default
 )
 from src.openrouter import OpenRouterClient
 from src.firecrawl_client import FirecrawlClient
@@ -165,6 +166,20 @@ async def perform_web_research(query: str, client: OpenRouterClient) -> str:
     
     return report
 
+# --- Add Model Definitions Here ---
+# Define model choices based on user query and web search results
+MODEL_OPTIONS = {
+    "Mistral Medium 3": "mistralai/mistral-medium-3",
+    "Google Gemini 2.5 Pro": "google/gemini-2.5-pro-preview",
+    "OpenAI o3": "openai/o3",
+    "OpenAI GPT-4.1": "openai/gpt-4.1",
+    "Claude 3.7 Sonnet (thinking)": "anthropic/claude-3.7-sonnet:thinking",
+    "DeepSeek R1T Chimera": "tngtech/deepseek-r1t-chimera:free",
+}
+MODEL_DISPLAY_NAMES = list(MODEL_OPTIONS.keys())
+MODEL_IDENTIFIERS = list(MODEL_OPTIONS.values())
+# --- End Model Definitions ---
+
 async def main():
     st.set_page_config(
         page_title="AI Research Agent",
@@ -298,6 +313,28 @@ async def main():
         openrouter_client, firecrawl_client = init_clients()
 
         st.header("Unified Research Interface")
+
+        # --- Add Model Selection Section ---
+        st.subheader("Model Selection")
+        # Determine the index of the currently configured primary model for default selection
+        try:
+            default_model_identifier = OPENROUTER_PRIMARY_MODEL # Loaded from config/env
+            default_index = MODEL_IDENTIFIERS.index(default_model_identifier)
+        except ValueError:
+            default_index = 0 # Fallback to the first model if the default isn't in our list
+            st.warning(f"Default primary model '{OPENROUTER_PRIMARY_MODEL}' not found in selectable options. Defaulting to first option.")
+
+        selected_model_display_name = st.selectbox(
+            "Choose the AI model for report generation:",
+            options=MODEL_DISPLAY_NAMES,
+            index=default_index,
+            key="model_selector",
+            help="Select the AI model to use. Defaults are set in config/env."
+        )
+        # Store the corresponding identifier in session state
+        st.session_state.selected_model = MODEL_OPTIONS[selected_model_display_name]
+        st.markdown("---") # Separator
+        # --- End Model Selection Section ---
 
         # Research Query Input
         st.subheader("1. Define Your Research Focus")
@@ -512,9 +549,15 @@ async def main():
                     # --- END DEBUGGING ---
 
                     try:
+                        # --- Get the selected model ---
+                        model_to_use = st.session_state.get("selected_model", OPENROUTER_PRIMARY_MODEL) # Fallback just in case
+                        log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "MODEL_SELECTION_USED", f"Using model: {model_to_use} for report generation.")
+                        # --- End Get model ---
+
                         ai_generated_report = await openrouter_client.generate_response(
                             prompt=full_prompt_for_ai, 
-                            system_prompt=st.session_state.system_prompt
+                            system_prompt=st.session_state.system_prompt,
+                            model_override=model_to_use # Pass selected model
                         )
                         if ai_generated_report:
                             st.session_state.unified_report_content = ai_generated_report

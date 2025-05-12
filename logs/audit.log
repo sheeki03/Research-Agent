@@ -3972,3 +3972,30 @@
 2025-05-12 13:12:12 | USER: sheeki | ROLE: researcher | ACTION: FILE_PROCESS_SUCCESS | LINKS: N/A | DETAILS: Successfully extracted content from uploaded file: Loop Whitepaper (1).pdf
 2025-05-12 13:12:38 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/the-protocol/earning-passive-agressive | DETAILS: Research Query: ''. Files: 1 (Loop Whitepaper (1).pdf). URLs: 1.
 2025-05-12 13:15:41 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopfi.xyz/the-protocol/earning-passive-agressive | DETAILS: AI report generated for query: ''. Docs: 1. Scraped URLs: 1.
+2025-05-12 15:08:54 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 15:09:19 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:09:21 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: openai/o3 for report generation.
+2025-05-12 15:09:21 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_ERROR | LINKS: N/A | DETAILS: Error during AI call for query '[SYSTEM PROMPT]': OpenRouterClient.generate_response() got an unexpected keyword argument 'model_override'
+2025-05-12 15:25:32 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:25:32 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: google/gemini-2.5-pro-preview for report generation.
+2025-05-12 15:25:32 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_ERROR | LINKS: N/A | DETAILS: Error during AI call for query '[SYSTEM PROMPT]': OpenRouterClient.generate_response() got an unexpected keyword argument 'model_override'
+2025-05-12 15:25:34 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:25:34 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: google/gemini-2.5-pro-preview for report generation.
+2025-05-12 15:25:34 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_ERROR | LINKS: N/A | DETAILS: Error during AI call for query '[SYSTEM PROMPT]': OpenRouterClient.generate_response() got an unexpected keyword argument 'model_override'
+2025-05-12 15:25:44 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 15:25:53 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:25:53 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: google/gemini-2.5-pro-preview for report generation.
+2025-05-12 15:25:53 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_ERROR | LINKS: N/A | DETAILS: Error during AI call for query '[SYSTEM PROMPT]': OpenRouterClient.generate_response() got an unexpected keyword argument 'model_override'
+2025-05-12 15:28:20 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 15:28:28 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopedhype.com/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:28:32 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: google/gemini-2.5-pro-preview for report generation.
+2025-05-12 15:28:32 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_ERROR | LINKS: N/A | DETAILS: Error during AI call for query '[SYSTEM PROMPT]': OpenRouterClient.generate_response() got an unexpected keyword argument 'model_override'
+2025-05-12 15:35:26 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 15:35:42 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopedhype.com/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:35:42 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: google/gemini-2.5-pro-preview for report generation.
+2025-05-12 15:36:40 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_FAILURE | LINKS: N/A | DETAILS: AI returned empty report for query: '[SYSTEM PROMPT]'
+2025-05-12 15:59:08 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 15:59:18 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/ | DETAILS: Research Query: ''. Files: 0 (). URLs: 1.
+2025-05-12 15:59:18 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: anthropic/claude-3.7-sonnet:thinking for report generation.
+2025-05-12 16:02:10 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopfi.xyz/ | DETAILS: AI report generated for query: '[SYSTEM PROMPT]'. Docs: 0. Scraped URLs: 1.
+2025-05-12 16:12:08 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.

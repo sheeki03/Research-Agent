@@ -1,6 +1,7 @@
 import os
 import json
 import aiohttp
+from aiohttp import ClientTimeout
 from typing import Dict, Any, Optional, List, TypedDict
 import asyncio
 from .config import (
@@ -41,33 +42,64 @@ class OpenRouterClient:
             "temperature": temperature
         }
         
+        request_timeout = ClientTimeout(total=300)
+
         async with aiohttp.ClientSession(headers=self.headers) as session:
             try:
-                async with session.post(url, json=payload) as response:
+                async with session.post(url, json=payload, timeout=request_timeout) as response:
                     response.raise_for_status()
+                    
                     return await response.json()
+            except asyncio.TimeoutError:
+                 print(f"Request timed out while connecting or reading from OpenRouter API with {model}")
+                 return None
+            except aiohttp.ClientResponseError as e:
+                print(f"HTTP Error making request to OpenRouter API with {model}: Status {e.status}, Message: {e.message}, Headers: {e.headers}")
+                try:
+                    error_body = await e.read()
+                    print(f"Error body: {error_body.decode()}")
+                except Exception as read_e:
+                    print(f"Could not read error body: {read_e}")
+                return None
             except aiohttp.ClientError as e:
-                print(f"Error making request to OpenRouter API with {model}: {e}")
+                print(f"Client Error making request to OpenRouter API with {model}: {e}")
                 return None
 
     async def generate_response(self,
                          prompt: str, 
                          system_prompt: Optional[str] = None,
-                         temperature: float = 0.7) -> Optional[str]:
-        """Generate a response using the OpenRouter API with fallback, asynchronously."""
+                         temperature: float = 0.7,
+                         model_override: Optional[str] = None) -> Optional[str]:
+        """Generate a response using the OpenRouter API with fallback, asynchronously.
+        If model_override is provided, it uses that model directly, skipping primary/fallback.
+        """
         messages = []
         system_prompt_to_use = system_prompt or SYSTEM_PROMPT
         messages.append({"role": "system", "content": system_prompt_to_use})
         messages.append({"role": "user", "content": prompt})
         
-        response_data = await self._make_request(self.primary_model, messages, temperature)
+        response_data = None
         
-        if response_data is None and self.fallback_model:
-            print(f"Primary model {self.primary_model} failed, trying fallback model {self.fallback_model}")
-            response_data = await self._make_request(self.fallback_model, messages, temperature)
+        if model_override:
+            # Use the specified override model
+            print(f"Using provided model override: {model_override}")
+            response_data = await self._make_request(model_override, messages, temperature)
+        else:
+            # Use primary model with fallback logic
+            print(f"Using primary model: {self.primary_model}")
+            response_data = await self._make_request(self.primary_model, messages, temperature)
+            
+            if response_data is None and self.fallback_model:
+                print(f"Primary model {self.primary_model} failed, trying fallback model {self.fallback_model}")
+                response_data = await self._make_request(self.fallback_model, messages, temperature)
         
+        # Process the response (regardless of which model was used)
         if response_data and "choices" in response_data and response_data["choices"]:
             return response_data["choices"][0]["message"]["content"]
+        
+        # Log if response_data was received but didn't have expected content
+        if response_data:
+             print(f"Warning: Received response data but could not extract content. Data: {response_data}")
         
         return None
 
