@@ -826,14 +826,17 @@ async def main():
             st.header("Admin Panel - Audit Logs")
             
             log_file_path = Path("/app/logs/audit.log")
+            st.write(f"DEBUG: Checking for log file at: {log_file_path.resolve()}") # DEBUG
             log_data = []
 
             if log_file_path.exists():
+                st.write(f"DEBUG: Log file exists. File size: {log_file_path.stat().st_size} bytes") # DEBUG
                 try:
                     with open(log_file_path, 'r') as f:
                         # Read lines in reverse to show newest first
-                        log_lines = reversed(f.readlines())
-                        for line in log_lines:
+                        log_lines = f.readlines() # Read all lines first
+                        st.write(f"DEBUG: Read {len(log_lines)} lines from log file.") # DEBUG
+                        for line in reversed(log_lines): # Then reverse
                             parsed = parse_log_line(line)
                             if parsed:
                                 log_data.append(parsed)
@@ -856,12 +859,13 @@ async def main():
                         
                         st.dataframe(df[cols_to_display], column_config=active_column_config)
                     else:
-                        st.info("Audit log file exists but contains no parseable entries.")
+                        st.info("Audit log file exists but contains no parseable entries (or all entries were unparseable).") # Modified message
                         
                 except Exception as e:
                     st.error(f"Error reading or parsing audit log file: {e}")
             else:
                 st.warning("Audit log file not found. Logging may not be configured or no events logged yet.")
+                st.write(f"DEBUG: Attempted to access {log_file_path.resolve()} but it was not found.") # DEBUG
             
             if st.button("Refresh Logs", key="refresh_logs_button"):
                  st.rerun() # Simple way to refresh the view by rerunning the script
