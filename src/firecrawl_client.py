@@ -78,7 +78,7 @@ class FirecrawlClient:
         headers = {"Content-Type": "application/json"}
 
         # Make request to Firecrawl
-        scrape_endpoint = f"{self.base_url}/v0/scrape"
+        scrape_endpoint = f"{self.base_url}/v1/scrape"
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(
