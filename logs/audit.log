@@ -3999,3 +3999,8 @@
 2025-05-12 15:59:18 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: anthropic/claude-3.7-sonnet:thinking for report generation.
 2025-05-12 16:02:10 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopfi.xyz/ | DETAILS: AI report generated for query: '[SYSTEM PROMPT]'. Docs: 0. Scraped URLs: 1.
 2025-05-12 16:12:08 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 17:39:35 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 17:39:52 | USER: sheeki | ROLE: researcher | ACTION: FILE_PROCESS_SUCCESS | LINKS: N/A | DETAILS: Successfully extracted content from uploaded file: Loop Whitepaper (1).pdf
+2025-05-12 17:39:57 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/ | DETAILS: Research Query: ''. Files: 1 (Loop Whitepaper (1).pdf). URLs: 1.
+2025-05-12 17:39:59 | USER: sheeki | ROLE: researcher | ACTION: MODEL_SELECTION_USED | LINKS: N/A | DETAILS: Using model: tngtech/deepseek-r1t-chimera:free for report generation.
+2025-05-12 17:41:52 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopfi.xyz/ | DETAILS: AI report generated for query: '[SYSTEM PROMPT]'. Docs: 1. Scraped URLs: 1.

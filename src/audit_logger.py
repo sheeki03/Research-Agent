@@ -20,16 +20,22 @@ logger.setLevel(logging.INFO) # Capture info and higher level messages
 # For now, a simple FileHandler will suffice.
 file_handler = logging.FileHandler(AUDIT_LOG_FILE, encoding='utf-8')
 
+# --- Add StreamHandler for Streamlit Cloud logs --- 
+stream_handler = logging.StreamHandler() # Defaults to stderr
+# --- End StreamHandler --- 
+
 # Define the log format
 # Example: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: LOGIN | DETAILS: Successful login
 # New Example: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: WEB_RESEARCH | LINKS: http://a.com, http://b.com | DETAILS: Submitted research
 formatter = logging.Formatter("%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | LINKS: %(links)s | DETAILS: %(details)s", 
                               datefmt="%Y-%m-%d %H:%M:%S")
 file_handler.setFormatter(formatter)
+stream_handler.setFormatter(formatter) # Use the same format for console output
 
 # Add the handler to the logger
 if not logger.handlers:
     logger.addHandler(file_handler)
+    logger.addHandler(stream_handler) # Add the stream handler as well
 
 # Helper function to log audit events
 def log_audit_event(username: str, role: str, action: str, details: str, links: list[str] | None = None):
