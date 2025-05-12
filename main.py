@@ -6,6 +6,8 @@ from pathlib import Path
 import asyncio
 from typing import List, Dict, Any, Optional
 import io
+import re # Added for link extraction
+from urllib.parse import urlparse, urljoin # Added for link processing
 
 try:
     import fitz  # PyMuPDF
@@ -122,23 +124,22 @@ def extract_text_from_txt_md(file_bytes: bytes, encoding='utf-8') -> str:
         return ""
 # End of helper functions
 
-async def process_urls(urls: List[str], client: FirecrawlClient) -> List[Dict[str, str]]:
-    """Process a list of URLs and return a list of dicts with url, content/error."""
+async def process_urls(urls: List[str], client: FirecrawlClient) -> List[Dict[str, Any]]:
+    """Process a list of specific URLs and return a list of dicts with url, content/error."""
     results = await client.scrape_multiple_urls(urls)
     
     processed_results = []
     for result in results:
-        url = result.get("metadata", {}).get("url", result.get("url", "unknown URL")) # Get URL from metadata or direct key
+        url = result.get("metadata", {}).get("url", result.get("url", "unknown URL"))
         if result.get("success", False):
             content_data = result.get("data", {}).get("content", "")
-            if not content_data: # Fallback if 'data' structure is not present
+            if not content_data:
                  content_data = result.get("content", "")
             processed_results.append({"url": url, "content": content_data, "status": "success"})
         else:
             error_message = result.get("error", "Unknown error")
             processed_results.append({"url": url, "error": error_message, "status": "failed"})
-            # UI warning will be handled where this function is called, based on the status
-    
+            
     return processed_results
 
 async def perform_web_research(query: str, client: OpenRouterClient) -> str:
@@ -180,6 +181,111 @@ MODEL_DISPLAY_NAMES = list(MODEL_OPTIONS.keys())
 MODEL_IDENTIFIERS = list(MODEL_OPTIONS.values())
 # --- End Model Definitions ---
 
+# --- NEW: Crawl and Scrape Function --- 
+async def crawl_and_scrape_site(start_url: str, limit: int, client: FirecrawlClient) -> List[Dict[str, Any]]:
+    """Crawls a website starting from start_url, scraping content and following same-domain links up to a limit."""
+    if not start_url or not client.validate_url(start_url):
+        st.warning(f"Invalid start URL provided for crawl: {start_url}")
+        return []
+
+    if limit <= 0:
+        st.warning("Crawl limit must be greater than 0.")
+        return []
+
+    base_domain = urlparse(start_url).netloc
+    urls_to_scrape = {start_url}
+    visited_urls = set()
+    scraped_data_list = []
+    scrape_count = 0
+
+    # Modified regex to use r"..." string format
+    link_regex = re.compile(r'href\s*=\s*[\'"]([^\'"]+)[\'"]', re.IGNORECASE)
+
+    st.info(f"Starting crawl from {start_url} (Domain: {base_domain}), limit: {limit} pages.")
+
+    while urls_to_scrape and scrape_count < limit:
+        current_url = urls_to_scrape.pop()
+
+        if current_url in visited_urls:
+            continue
+
+        visited_urls.add(current_url)
+        scrape_count += 1
+        st.write(f"Crawling [{scrape_count}/{limit}]: {current_url}") # Show progress
+
+        try:
+            # Use the single scrape_url method from the client
+            scraped_result_dict = await client.scrape_url(current_url)
+            
+            # Extract markdown content for storage/AI processing
+            markdown_content = scraped_result_dict.get("data", {}).get("content", "") 
+            # Extract HTML content specifically for link extraction
+            html_for_links = scraped_result_dict.get("data", {}).get("html_content", "")
+            
+            # Check for errors reported by the client
+            client_error = scraped_result_dict.get("error")
+            if client_error:
+                st.error(f"Scraper client returned error for {current_url}: {client_error}")
+                scraped_data_list.append({"url": current_url, "error": client_error, "status": "failed"})
+                log_audit_event(
+                    username=st.session_state.get('username', 'SYSTEM'),
+                    role=st.session_state.get('role', 'N/A'),
+                    action="CRAWL_SCRAPE_CLIENT_ERROR", # Distinguish from API error
+                    details=f"Firecrawl client processing error for {current_url}: {client_error}",
+                    links=[current_url]
+                )
+                continue # Move to the next URL
+
+            if markdown_content:
+                # Store the markdown content
+                scraped_data_list.append({"url": current_url, "content": markdown_content, "status": "success"})
+                
+                # Find and process links using HTML content if available, otherwise fallback to markdown
+                link_source_content = html_for_links if html_for_links else markdown_content
+                if scrape_count < limit and link_source_content:
+                    found_links_count = 0
+                    potential_links = link_regex.findall(link_source_content)
+                    for link in potential_links:
+                        try:
+                            absolute_link = urljoin(current_url, link.strip())
+                            parsed_link = urlparse(absolute_link)
+                            
+                            # Basic validation and domain check
+                            if parsed_link.scheme in ['http', 'https'] and parsed_link.netloc == base_domain:
+                                if absolute_link not in visited_urls and absolute_link not in urls_to_scrape:
+                                    urls_to_scrape.add(absolute_link)
+                                    found_links_count += 1
+                        except Exception as link_e:
+                            # Ignore errors parsing/resolving individual links
+                            # print(f" Minor error processing link '{link}': {link_e}")
+                            pass # Be less verbose in UI
+                    # st.write(f"  Found {found_links_count} new links on {current_url}") # Optional debug
+            else: # No markdown content extracted
+                error_msg = f"No primary (markdown) content extracted from: {current_url}"
+                scraped_data_list.append({"url": current_url, "error": error_msg, "status": "no_content"})
+                st.warning(error_msg)
+        
+        except Exception as e: # Catch exceptions from scrape_url call itself or processing
+            error_msg = f"Error scraping {current_url}: {str(e)}"
+            st.error(error_msg)
+            scraped_data_list.append({"url": current_url, "error": error_msg, "status": "failed"})
+            # Log this significant error
+            log_audit_event(
+                username=st.session_state.get('username', 'SYSTEM'), # Get username if available
+                role=st.session_state.get('role', 'N/A'),
+                action="CRAWL_SCRAPE_FAILURE",
+                details=error_msg,
+                links=[current_url]
+            )
+
+    if urls_to_scrape:
+        st.warning(f"Crawl limit ({limit}) reached, {len(urls_to_scrape)} URLs remaining in queue.")
+    
+    successful_scrape_count = sum(1 for item in scraped_data_list if item.get('status') == 'success' and item.get('content'))
+    st.info(f"Crawl finished. Attempted {len(scraped_data_list)} pages, successfully scraped {successful_scrape_count} with content.")
+    return scraped_data_list
+# --- End Crawl Function --- 
+
 async def main():
     st.set_page_config(
         page_title="AI Research Agent",
@@ -204,6 +310,8 @@ async def main():
         st.session_state.unified_report_content = ""
     if "scraped_web_content" not in st.session_state: # Added for this task (Task 3)
         st.session_state.scraped_web_content = []
+    if "crawled_web_content" not in st.session_state:
+        st.session_state.crawled_web_content = []
 
     # Sidebar
     with st.sidebar:
@@ -427,64 +535,96 @@ async def main():
             st.markdown("---")
 
         # URL Input Section
-        st.subheader("3. Provide Web URLs (Optional)")
-        st.write("Enter up to 10 URLs for web content scraping:")
+        st.subheader("3. Provide Specific Web URLs (Optional)")
+        # st.write("Enter up to 10 URLs for web content scraping:") # Old instruction
         
-        # Create a list to hold URL inputs
-        url_inputs = [] 
-        for i in range(10):
-            url = st.text_input(f"URL {i+1}", key=f"url_input_{i+1}", placeholder=f"https://example.com/page{i+1}")
-            url_inputs.append(url)
+        # Create a list to hold URL inputs (Old)
+        # url_inputs = [] 
+        # for i in range(10):
+        #     url = st.text_input(f"URL {i+1}", key=f"url_input_{i+1}", placeholder=f"https://example.com/page{i+1}")
+        #     url_inputs.append(url)
+
+        # New Text Area for URLs
+        urls_text_area = st.text_area(
+            "Enter URLs, one per line:",
+            height=150, # Adjust height as needed
+            key="urls_text_area_input",
+            placeholder="https://example.com/page1\nhttps://another-example.com/article2\n..."
+        )
         
-        # Collect provided URLs
-        submitted_urls = [url for url in url_inputs if url] # Collect non-empty URLs from the list
+        # Collect provided URLs from the text area
+        # submitted_urls = [url for url in url_inputs if url] # Old collection logic
+        if urls_text_area:
+            submitted_urls = [url.strip() for url in urls_text_area.split('\n') if url.strip()] 
+        else:
+            submitted_urls = []
+
+        # --- Add Crawl Input Section --- (Header 4)
+        st.subheader("4. Crawl & Scrape Site (Optional)")
+        crawl_start_url = st.text_input(
+            "Starting URL for Crawl:",
+            key="crawl_start_url_input",
+            placeholder="https://example.com/startpage"
+        )
+        crawl_limit = st.number_input(
+            "Max Pages to Scrape (Crawl Limit):",
+            min_value=1,
+            max_value=50, # Set a reasonable upper limit
+            value=5, # Default limit
+            step=1,
+            key="crawl_limit_input",
+            help="Maximum number of pages to scrape during the crawl, starting from the URL above."
+        )
+        st.markdown("---")
+        # --- End Crawl Input Section ---
 
         # Report Generation
-        st.subheader("4. Generate Report")
+        st.subheader("5. Generate Report")
         if st.button("Generate Unified Report", key="generate_unified_report_button"):
-            if not research_query and not uploaded_files_new and not submitted_urls:
-                st.warning("Please provide a research query, upload documents, or enter URLs to generate a report.")
+            # Modified input check: Need query OR docs OR explicit URLs OR crawl URL
+            if not research_query and not st.session_state.processed_documents_content and not submitted_urls and not crawl_start_url:
+                st.warning("Please provide a research query, upload documents, enter specific URLs, or provide a starting URL to crawl.")
             else:
-                # Clear previous report content before generating a new one
+                # Clear previous report content and results
                 st.session_state.unified_report_content = ""
-                st.session_state.scraped_web_content = [] # Clear previous scrape results
+                st.session_state.scraped_web_content = [] # Clear previous specific scrape results
+                st.session_state.crawled_web_content = [] # Clear previous crawl results
 
-                # Log the report generation attempt
+                # Log the report generation attempt (include crawl info if provided)
+                crawl_info = f" Crawl Start: '{crawl_start_url}', Limit: {crawl_limit}." if crawl_start_url else ""
                 processed_doc_names = [doc['name'] for doc in st.session_state.processed_documents_content]
-                details_str = f"Research Query: '{research_query}'. Files: {len(processed_doc_names)} ({', '.join(processed_doc_names[:3])}{'...' if len(processed_doc_names) > 3 else ''}). URLs: {len(submitted_urls)}."
+                details_str = f"Research Query: '{research_query}'. Files: {len(processed_doc_names)} ({', '.join(processed_doc_names[:3])}{'...' if len(processed_doc_names) > 3 else ''}). Specific URLs: {len(submitted_urls)}.{crawl_info}"
+                
+                links_for_log = submitted_urls[:] # Copy list
+                if crawl_start_url: links_for_log.append(f"[CRAWL_START] {crawl_start_url}")
 
                 log_audit_event(
                     username=st.session_state.username,
                     role=st.session_state.get('role','N/A'), 
                     action="REPORT_GENERATION_INITIATED",
                     details=details_str,
-                    links=submitted_urls if submitted_urls else None
+                    links=links_for_log if links_for_log else None,
+                    model_name=st.session_state.get("selected_model", "N/A")
                 )
 
                 with st.spinner("Processing inputs and generating report..."):
-                    # --- Stage 1: Scrape Web Content (Task 3) ---
+                    # --- Stage 1a: Scrape Specific URLs ---
                     if submitted_urls:
-                        st.info(f"Starting web scraping for {len(submitted_urls)} URL(s)...")
-                        scraped_data = await process_urls(submitted_urls, firecrawl_client)
-                        st.session_state.scraped_web_content = scraped_data
-                        
-                        # Display scraping feedback
-                        successful_scrapes = 0
-                        for item in scraped_data:
-                            if item["status"] == "success":
-                                st.success(f"Successfully scraped: {item['url']}")
-                                # Audit log for successful scrape included in REPORT_GENERATION_INITIATED with all links
-                                # log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "URL_SCRAPE_SUCCESS", f"Scraped: {item['url']}", links=[item['url']])
-                                successful_scrapes += 1
-                            else:
-                                st.warning(f"Failed to scrape: {item['url']} - Error: {item['error']}")
-                                log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "URL_SCRAPE_FAILURE", f"Failed to scrape: {item['url']}. Error: {item['error']}", links=[item['url']])
-                        if successful_scrapes > 0:
-                            st.info(f"Finished scraping: {successful_scrapes}/{len(submitted_urls)} URLs scraped successfully.")
-                        else:
-                            st.warning("Web scraping completed, but no content was successfully retrieved from the provided URLs.")
+                        st.info(f"Starting web scraping for {len(submitted_urls)} specific URL(s)...")
+                        scraped_data_specific = await process_urls(submitted_urls, firecrawl_client)
+                        st.session_state.scraped_web_content = scraped_data_specific # Store specific results
+                        # ... (keep existing feedback logic for specific URLs) ...
                     else:
-                        st.info("No URLs provided for web scraping.")
+                        st.info("No specific URLs provided for web scraping.")
+                        
+                    # --- Stage 1b: Crawl & Scrape Site ---
+                    if crawl_start_url:
+                        # Call the new crawl function
+                        crawled_data = await crawl_and_scrape_site(crawl_start_url, crawl_limit, firecrawl_client)
+                        st.session_state.crawled_web_content = crawled_data
+                        # Feedback is handled within the crawl function
+                    else:
+                        st.info("No starting URL provided for site crawl.")
                     
                     # --- Task 4: Combined Analysis & Report Generation --- 
                     st.info("Combining processed content and generating AI report...")
@@ -499,13 +639,23 @@ async def main():
                             document_texts.append(f"--- Document: {doc['name']} ---\n{doc['text']}\n---")
                     combined_document_text = "\n".join(document_texts)
 
-                    # 3. Retrieve text from scraped URLs
+                    # 3. Retrieve text from BOTH scraped specific URLs and crawled URLs
                     scraped_content_texts = []
                     if st.session_state.scraped_web_content:
+                        scraped_content_texts.append("--- Specific URLs Content ---")
                         for item in st.session_state.scraped_web_content:
-                            if item["status"] == "success" and item.get("content"): # Ensure content exists
-                                scraped_content_texts.append(f"--- Web Content from: {item['url']} ---\n{item['content']}\n---")
+                            if item["status"] == "success" and item.get("content"): 
+                                scraped_content_texts.append(f"--- URL: {item['url']} ---\n{item['content']}\n---")
+                    
+                    crawled_content_texts = []
+                    successful_crawls = [item for item in st.session_state.crawled_web_content if item["status"] == "success" and item.get("content")]
+                    if successful_crawls:
+                        crawled_content_texts.append("--- Crawled Site Content ---")
+                        for item in successful_crawls:
+                            crawled_content_texts.append(f"--- Crawled URL: {item['url']} ---\n{item['content']}\n---")
+                                
                     combined_scraped_text = "\n".join(scraped_content_texts)
+                    combined_crawled_text = "\n".join(crawled_content_texts)
 
                     # 4. Combine all text sources with the research query
                     # The research_query acts as the primary instruction/question.
@@ -526,11 +676,16 @@ async def main():
                         
                     # Append scraped web content if available
                     if combined_scraped_text:
-                        full_prompt_for_ai += f"Provided Web Content:\\n{combined_scraped_text}\\n\\n"
-                    else:
-                        full_prompt_for_ai += "No web content was provided or successfully scraped.\\n\\n"
+                        full_prompt_for_ai += f"Provided Specific Web Content:\n{combined_scraped_text}\\n\\n"
+                    # else: (No longer needed to say 'No web content' here, check combined below)
+                    #    full_prompt_for_ai += "No specific web content was provided or successfully scraped.\\n\\n"
+                        
+                    if combined_crawled_text:
+                        full_prompt_for_ai += f"Provided Crawled Web Content:\n{combined_crawled_text}\\n\\n"
+                        
+                    if not combined_scraped_text and not combined_crawled_text:
+                         full_prompt_for_ai += "No web content was provided or successfully scraped/crawled.\\n\\n"
                     
-                    # Final instruction part
                     full_prompt_for_ai += "Based on the research goal/query and all the provided content above, please generate a comprehensive report."
 
                     # 5. Call OpenRouterClient
@@ -545,13 +700,15 @@ async def main():
                     st.write(f"Research Query Provided: {'Yes' if research_query else 'No'} (Content: '{debug_query_snippet}')") # Use prepared snippet
                     st.write(f"Combined Document Text Provided: {'Yes' if combined_document_text else 'No'} (Length: {len(combined_document_text)})")
                     st.write(f"Combined Scraped Text Provided: {'Yes' if combined_scraped_text else 'No'} (Length: {len(combined_scraped_text)})")
+                    st.write(f"Combined Crawled Text Provided: {'Yes' if combined_crawled_text else 'No'} (Length: {len(combined_crawled_text)})")
                     st.write("--- END DEBUG INFO ---")
                     # --- END DEBUGGING ---
 
                     try:
                         # --- Get the selected model ---
                         model_to_use = st.session_state.get("selected_model", OPENROUTER_PRIMARY_MODEL) # Fallback just in case
-                        log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "MODEL_SELECTION_USED", f"Using model: {model_to_use} for report generation.")
+                        # Remove the log here as it's logged earlier and below
+                        # log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "MODEL_SELECTION_USED", f"Using model: {model_to_use} for report generation.")
                         # --- End Get model ---
 
                         ai_generated_report = await openrouter_client.generate_response(
@@ -568,22 +725,25 @@ async def main():
                             success_details = f"AI report generated for query: '{query_for_log}'. Docs: {len(processed_doc_names)}. Scraped URLs: {len(successfully_scraped_urls)}."
                             
                             log_audit_event(
-                                username=st.session_state.username, 
+                                username=st.session_state.username,
                                 role=st.session_state.get('role','N/A'), 
                                 action="REPORT_GENERATION_SUCCESS", 
                                 details=success_details,
-                                links=successfully_scraped_urls if successfully_scraped_urls else None
+                                links=successfully_scraped_urls if successfully_scraped_urls else None,
+                                model_name=model_to_use # Log model used
                             )
                         else:
                             st.session_state.unified_report_content = "Failed to generate AI report. The AI returned an empty response."
                             st.error("AI report generation failed or returned empty.")
                             query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
                             log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_FAILURE", details=f"AI returned empty report for query: '{query_for_log}'")
+                            log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_FAILURE", details=f"AI returned empty report for query: '{query_for_log}'", model_name=model_to_use)
                     except Exception as e:
                         st.session_state.unified_report_content = f"An error occurred during AI report generation: {str(e)}"
                         st.error(f"Error calling AI: {e}")
                         query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
                         log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_ERROR", details=f"Error during AI call for query '{query_for_log}': {str(e)}")
+                        log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_ERROR", details=f"Error during AI call for query '{query_for_log}': {str(e)}", model_name=model_to_use)
                     
                     # Remove the debug JSON output now that real processing is in place
                     # st.markdown("--- DEBUG: Information Collected ---\")

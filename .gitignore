@@ -1,3 +1,4 @@
 .cursorrules
 .env
 .streamlit/secrets.toml
+/output

@@ -27,7 +27,8 @@ stream_handler = logging.StreamHandler() # Defaults to stderr
 # Define the log format
 # Example: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: LOGIN | DETAILS: Successful login
 # New Example: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: WEB_RESEARCH | LINKS: http://a.com, http://b.com | DETAILS: Submitted research
-formatter = logging.Formatter("%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | LINKS: %(links)s | DETAILS: %(details)s", 
+# Added MODEL field: 2023-10-27 10:30:00,123 | USER: admin | ROLE: admin | ACTION: REPORT_GEN | MODEL: openai/gpt-4o | LINKS: ... | DETAILS: ...
+formatter = logging.Formatter("%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s", 
                               datefmt="%Y-%m-%d %H:%M:%S")
 file_handler.setFormatter(formatter)
 stream_handler.setFormatter(formatter) # Use the same format for console output
@@ -38,18 +39,25 @@ if not logger.handlers:
     logger.addHandler(stream_handler) # Add the stream handler as well
 
 # Helper function to log audit events
-def log_audit_event(username: str, role: str, action: str, details: str, links: list[str] | None = None):
+def log_audit_event(username: str, 
+                    role: str, 
+                    action: str, 
+                    details: str, 
+                    links: list[str] | None = None, 
+                    model_name: str | None = None): # Added model_name parameter
     """
     Logs an audit event with a specific format.
     Uses extra context for the logger.
     """
     processed_links = ", ".join(links) if links and isinstance(links, list) else "N/A"
+    model_for_log = model_name if model_name else "N/A"
     
     logger.info(
         details, # The main message for logger.info
         extra={"user": username if username else "SYSTEM", 
                "role": role if role else "N/A",
                "action": action,
+               "model": model_for_log, # Pass model name to formatter
                "links": processed_links,
                "details": details # Passing details again for the custom formatter field
               }

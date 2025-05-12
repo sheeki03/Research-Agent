@@ -14,7 +14,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - FIRECRAWL_API_URL=http://host.docker.internal:3002
+      - FIRECRAWL_API_URL=https://j12d832.impossible.finance
       - REDIS_URL=redis://redis:6379
       - APP_ENV=${APP_ENV:-development}
       - DEBUG=${DEBUG:-true}
