@@ -12,6 +12,7 @@ AUDIT_LOG_FILE = LOGS_DIR / "audit.log"
 
 logger = logging.getLogger("audit")
 logger.setLevel(logging.INFO) # Capture info and higher level messages
+logger.propagate = False # Prevent propagation to parent/root handlers
 
 # Define a simple formatter for setup messages
 setup_formatter = logging.Formatter('%(asctime)s | SETUP | %(levelname)s | %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
@@ -21,12 +22,15 @@ setup_stream_handler = logging.StreamHandler()
 setup_stream_handler.setFormatter(setup_formatter)
 logger.addHandler(setup_stream_handler)
 
-# Explicitly create the directory *before* handler setup
+# --- Perform Setup Logging (using the temporary handler) ---
+logger.info(f"Initializing audit logger.")
 try:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     logger.info(f"Ensured logs directory exists: {LOGS_DIR}")
 except Exception as e:
     logger.error(f"Failed to create logs directory {LOGS_DIR}: {e}")
+
+# --- Configure Final Handlers --- 
 
 # Define the detailed formatter for actual audit events
 audit_formatter = logging.Formatter(
@@ -47,22 +51,30 @@ except Exception as e:
 # --- Stream Handler Setup --- 
 stream_handler = logging.StreamHandler() 
 stream_handler.setFormatter(audit_formatter) # Use detailed formatter
-logger.info("StreamHandler configured.")
+logger.info("Final StreamHandler configured with detailed format.")
 
-# Remove the temporary setup handler now that setup is done
+# --- Finalize Logger Configuration ---
+
+# Remove the temporary setup handler now that setup logging is done
 logger.removeHandler(setup_stream_handler)
+logger.info("Removed temporary setup handler.")
 
-# Add the final handlers if they haven't been added yet
-if not logger.handlers:
-    if file_handler:
-        logger.addHandler(file_handler)
-        logger.info("FileHandler added to logger.")
-    else:
-        logger.warning("FileHandler was not initialized, skipping addHandler.")
-    
-    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-        logger.addHandler(stream_handler)
-        logger.info("StreamHandler added to logger.")
+# Clear any OTHER handlers that might have been attached (e.g., inherited/duplicates)
+# Important to do this AFTER setup logging and BEFORE adding final handlers
+for handler in logger.handlers[:]: # Iterate over a copy
+    logger.removeHandler(handler)
+logger.info(f"Cleared existing handlers (if any). Current handlers: {logger.handlers}")
+
+# Add the final handlers 
+if file_handler:
+    logger.addHandler(file_handler)
+    logger.info("Final FileHandler added.")
+else:
+    logger.warning("Final FileHandler was not initialized or added.")
+
+logger.addHandler(stream_handler)
+logger.info("Final StreamHandler added.")
+logger.info(f"Audit logger initialization complete. Final handlers: {logger.handlers}")
 
 # Helper function to log audit events
 def log_audit_event(username: str, 
