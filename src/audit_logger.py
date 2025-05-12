@@ -13,63 +13,56 @@ AUDIT_LOG_FILE = LOGS_DIR / "audit.log"
 logger = logging.getLogger("audit")
 logger.setLevel(logging.INFO) # Capture info and higher level messages
 
-# Define dummy extra fields for setup logs
-SETUP_EXTRA = {
-    "user": "SYSTEM_SETUP", 
-    "role": "N/A", 
-    "action": "LOGGER_SETUP", 
-    "model": "N/A", 
-    "links": "N/A", 
-    "details": "Logger setup process"
-}
+# Define a simple formatter for setup messages
+setup_formatter = logging.Formatter('%(asctime)s | SETUP | %(levelname)s | %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+
+# Temporarily add a stream handler with simple format for setup diagnostics
+setup_stream_handler = logging.StreamHandler()
+setup_stream_handler.setFormatter(setup_formatter)
+logger.addHandler(setup_stream_handler)
 
 # Explicitly create the directory *before* handler setup
 try:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Ensured logs directory exists: {LOGS_DIR}", extra=SETUP_EXTRA)
+    logger.info(f"Ensured logs directory exists: {LOGS_DIR}")
 except Exception as e:
-    logger.error(f"Failed to create logs directory {LOGS_DIR}: {e}", extra=SETUP_EXTRA)
+    logger.error(f"Failed to create logs directory {LOGS_DIR}: {e}")
+
+# Define the detailed formatter for actual audit events
+audit_formatter = logging.Formatter(
+    "%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s", 
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
 # --- File Handler Setup with Error Handling ---
 file_handler = None
 try:
     file_handler = logging.FileHandler(AUDIT_LOG_FILE, encoding='utf-8')
-    # Define formatter here
-    formatter = logging.Formatter(
-        "%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s", 
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    file_handler.setFormatter(formatter)
-    logger.info(f"FileHandler configured for {AUDIT_LOG_FILE}", extra=SETUP_EXTRA) # Console log confirmation
+    file_handler.setFormatter(audit_formatter) # Use detailed formatter
+    logger.info(f"FileHandler configured for {AUDIT_LOG_FILE}")
 except Exception as e:
-    logger.error(f"Failed to initialize FileHandler for {AUDIT_LOG_FILE}: {e}", extra=SETUP_EXTRA)
-    # file_handler remains None
+    logger.error(f"Failed to initialize FileHandler for {AUDIT_LOG_FILE}: {e}")
+    file_handler = None
 
 # --- Stream Handler Setup --- 
-stream_handler = logging.StreamHandler() # Defaults to stderr
-# Ensure formatter is defined even if file_handler failed, for stream_handler
-if 'formatter' not in locals():
-     formatter = logging.Formatter(
-        "%(asctime)s | USER: %(user)s | ROLE: %(role)s | ACTION: %(action)s | MODEL: %(model)s | LINKS: %(links)s | DETAILS: %(details)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-stream_handler.setFormatter(formatter) # Use the same format for console output
-logger.info("StreamHandler configured.", extra=SETUP_EXTRA) # Console log confirmation
+stream_handler = logging.StreamHandler() 
+stream_handler.setFormatter(audit_formatter) # Use detailed formatter
+logger.info("StreamHandler configured.")
 
-# Add the handlers to the logger if they haven't been added yet
-# Check prevents duplicate handlers if this module is reloaded
+# Remove the temporary setup handler now that setup is done
+logger.removeHandler(setup_stream_handler)
+
+# Add the final handlers if they haven't been added yet
 if not logger.handlers:
-    if file_handler: # Only add if successfully initialized
+    if file_handler:
         logger.addHandler(file_handler)
-        logger.info("FileHandler added to logger.", extra=SETUP_EXTRA)
+        logger.info("FileHandler added to logger.")
     else:
-        # Use logger.warning for non-critical setup issues
-        logger.warning("FileHandler was not initialized, skipping addHandler.", extra=SETUP_EXTRA)
+        logger.warning("FileHandler was not initialized, skipping addHandler.")
     
-    # Check if stream handler already added (less likely to cause issues but good practice)
     if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
         logger.addHandler(stream_handler)
-        logger.info("StreamHandler added to logger.", extra=SETUP_EXTRA)
+        logger.info("StreamHandler added to logger.")
 
 # Helper function to log audit events
 def log_audit_event(username: str, 
