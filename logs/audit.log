@@ -4084,3 +4084,7 @@
 2025-05-12 20:38:10 | USER: admin | ROLE: admin | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User admin logged in successfully.
 2025-05-12 20:38:29 | USER: admin | ROLE: admin | ACTION: REPORT_GENERATION_INITIATED | MODEL: tngtech/deepseek-r1t-chimera:free | LINKS: [CRAWL_START] https://aave.com/docs/concepts | DETAILS: Research Query: ''. Files: 0 (). Specific URLs: 0. Crawl Start: 'https://aave.com/docs/concepts', Limit: 5.
 2025-05-12 20:40:09 | USER: admin | ROLE: admin | ACTION: REPORT_GENERATION_SUCCESS | MODEL: tngtech/deepseek-r1t-chimera:free | LINKS: N/A | DETAILS: AI report generated for query: '[SYSTEM PROMPT]'. Docs: 0. Scraped URLs: 0.
+2025-05-12 20:47:35 | USER: admin | ROLE: admin | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User admin logged in successfully.
+2025-05-12 20:49:11 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 20:49:15 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGOUT | MODEL: N/A | LINKS: N/A | DETAILS: User sheeki logged out.
+2025-05-12 20:49:20 | USER: admin | ROLE: admin | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User admin logged in successfully.

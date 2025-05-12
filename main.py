@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 import io
 import re # Added for link extraction
 from urllib.parse import urlparse, urljoin # Added for link processing
+import pandas as pd # Import pandas
 
 try:
     import fitz  # PyMuPDF
@@ -285,6 +286,40 @@ async def crawl_and_scrape_site(start_url: str, limit: int, client: FirecrawlCli
     st.info(f"Crawl finished. Attempted {len(scraped_data_list)} pages, successfully scraped {successful_scrape_count} with content.")
     return scraped_data_list
 # --- End Crawl Function --- 
+
+# --- Add Function to Parse Log Line ---
+def parse_log_line(line: str) -> Optional[Dict[str, str]]:
+    """Parses a single line from the audit log file."""
+    parts = line.strip().split(' | ')
+    if len(parts) < 4: # Basic check for minimum parts (Timestamp, User, Role, Action)
+        return None
+    
+    log_entry = {
+        "Timestamp": parts[0],
+        "Username": "N/A",
+        "Role": "N/A",
+        "Action": "N/A",
+        "Model": "N/A",
+        "Links": "N/A",
+        "Details": "N/A"
+    }
+    
+    for part in parts[1:]: # Skip timestamp
+        try:
+            key, value = part.split(': ', 1)
+            # Map keys, handling potential variations
+            if key == "USER": log_entry["Username"] = value
+            elif key == "ROLE": log_entry["Role"] = value
+            elif key == "ACTION": log_entry["Action"] = value
+            elif key == "MODEL": log_entry["Model"] = value
+            elif key == "LINKS": log_entry["Links"] = value
+            elif key == "DETAILS": log_entry["Details"] = value
+        except ValueError:
+             # If a part doesn't split correctly, add it to Details as unparsed info
+             log_entry["Details"] = f"{log_entry.get('Details', '')} [Unparsed: {part}]"
+            
+    return log_entry
+# --- End Function ---
 
 async def main():
     st.set_page_config(
@@ -783,6 +818,54 @@ async def main():
         #      # or if a specific message for "no report generated" is desired, it can be placed here.
         #      # For now, if content is empty, nothing is shown, which is acceptable.
         #      pass 
+
+        st.markdown("---") # Separator before Admin Panel
+        
+        # ==== ADMIN PANEL ====
+        if st.session_state.get("role") == "admin":
+            st.header("Admin Panel - Audit Logs")
+            
+            log_file_path = Path("/app/logs/audit.log")
+            log_data = []
+
+            if log_file_path.exists():
+                try:
+                    with open(log_file_path, 'r') as f:
+                        # Read lines in reverse to show newest first
+                        log_lines = reversed(f.readlines())
+                        for line in log_lines:
+                            parsed = parse_log_line(line)
+                            if parsed:
+                                log_data.append(parsed)
+                                
+                    if log_data:
+                        df = pd.DataFrame(log_data)
+                        # Reorder columns for better readability
+                        cols_order = ["Timestamp", "Username", "Role", "Action", "Model", "Details", "Links"]
+                        cols_to_display = [col for col in cols_order if col in df.columns]
+                        
+                        # Configure column widths
+                        column_config = {
+                            "Links": st.column_config.TextColumn("Links", width="medium"),
+                            "Details": st.column_config.TextColumn("Details", width="medium"),
+                             # Set timestamp width if needed
+                            "Timestamp": st.column_config.TextColumn("Timestamp", width="small"),
+                        }
+                        # Apply config only for columns present in the dataframe
+                        active_column_config = {k: v for k, v in column_config.items() if k in cols_to_display}
+                        
+                        st.dataframe(df[cols_to_display], column_config=active_column_config)
+                    else:
+                        st.info("Audit log file exists but contains no parseable entries.")
+                        
+                except Exception as e:
+                    st.error(f"Error reading or parsing audit log file: {e}")
+            else:
+                st.warning("Audit log file not found. Logging may not be configured or no events logged yet.")
+            
+            if st.button("Refresh Logs", key="refresh_logs_button"):
+                 st.rerun() # Simple way to refresh the view by rerunning the script
+        # ==== END ADMIN PANEL ====
 
     else: # Not authenticated
         st.info("Please log in or create an account to access the research pipeline.")
