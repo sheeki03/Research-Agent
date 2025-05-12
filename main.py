@@ -35,7 +35,7 @@ from src.config import (
 )
 from src.openrouter import OpenRouterClient
 from src.firecrawl_client import FirecrawlClient
-from src.audit_logger import log_audit_event # Added for Task 5
+from src.audit_logger import get_audit_logger, AUDIT_LOG_FILE_PATH # Updated import
 
 # Initialize clients
 @st.cache_resource
@@ -228,10 +228,10 @@ async def crawl_and_scrape_site(start_url: str, limit: int, client: FirecrawlCli
             if client_error:
                 st.error(f"Scraper client returned error for {current_url}: {client_error}")
                 scraped_data_list.append({"url": current_url, "error": client_error, "status": "failed"})
-                log_audit_event(
-                    username=st.session_state.get('username', 'SYSTEM'),
+                get_audit_logger( # Replaced log_audit_event
+                    user=st.session_state.get('username', 'SYSTEM'),
                     role=st.session_state.get('role', 'N/A'),
-                    action="CRAWL_SCRAPE_CLIENT_ERROR", # Distinguish from API error
+                    action="CRAWL_SCRAPE_CLIENT_ERROR", 
                     details=f"Firecrawl client processing error for {current_url}: {client_error}",
                     links=[current_url]
                 )
@@ -271,8 +271,8 @@ async def crawl_and_scrape_site(start_url: str, limit: int, client: FirecrawlCli
             st.error(error_msg)
             scraped_data_list.append({"url": current_url, "error": error_msg, "status": "failed"})
             # Log this significant error
-            log_audit_event(
-                username=st.session_state.get('username', 'SYSTEM'), # Get username if available
+            get_audit_logger( # Replaced log_audit_event
+                user=st.session_state.get('username', 'SYSTEM'),
                 role=st.session_state.get('role', 'N/A'),
                 action="CRAWL_SCRAPE_FAILURE",
                 details=error_msg,
@@ -362,15 +362,30 @@ async def main():
                 if st.button("Sign Up", key="signup_submit_button"):
                     if not new_username or not new_password:
                         st.error("Username and password cannot be empty.")
-                        log_audit_event(new_username or "ANONYMOUS", "N/A", "USER_SIGNUP_FAILURE", "Attempted signup with empty username/password.")
+                        get_audit_logger( # Replaced log_audit_event
+                            user=new_username or "ANONYMOUS", 
+                            role="N/A", 
+                            action="USER_SIGNUP_FAILURE", 
+                            details="Attempted signup with empty username/password."
+                        )
                     elif new_password != confirm_password:
                         st.error("Passwords do not match.")
-                        log_audit_event(new_username, "N/A", "USER_SIGNUP_FAILURE", "Attempted signup with non-matching passwords.")
+                        get_audit_logger( # Replaced log_audit_event
+                            user=new_username, 
+                            role="N/A", 
+                            action="USER_SIGNUP_FAILURE", 
+                            details="Attempted signup with non-matching passwords."
+                        )
                     else:
                         users = load_users()
                         if new_username in users:
                             st.error("Username already exists.")
-                            log_audit_event(new_username, "N/A", "USER_SIGNUP_FAILURE", f"Attempted signup with existing username: {new_username}.")
+                            get_audit_logger( # Replaced log_audit_event
+                                user=new_username, 
+                                role="N/A", 
+                                action="USER_SIGNUP_FAILURE", 
+                                details=f"Attempted signup with existing username: {new_username}."
+                            )
                         else:
                             users[new_username] = {
                                 "password": hash_password(new_password),
@@ -379,11 +394,21 @@ async def main():
                             }
                             if save_users(users):
                                 st.success("Account created successfully! Please log in.")
-                                log_audit_event(new_username, "researcher", "USER_SIGNUP_SUCCESS", f"New user account created: {new_username}")
+                                get_audit_logger( # Replaced log_audit_event
+                                    user=new_username, 
+                                    role="researcher", 
+                                    action="USER_SIGNUP_SUCCESS", 
+                                    details=f"New user account created: {new_username}"
+                                )
                                 st.session_state.show_signup = False # Switch back to login
                             else:
                                 st.error("Failed to create account. Please try again.")
-                                log_audit_event(new_username, "researcher", "USER_SIGNUP_FAILURE", f"Failed to save new user account: {new_username} after validation.")
+                                get_audit_logger( # Replaced log_audit_event
+                                    user=new_username, 
+                                    role="researcher", 
+                                    action="USER_SIGNUP_FAILURE", 
+                                    details="Failed to save new user account: {new_username} after validation."
+                                )
                 
                 if st.button("Back to Login", key="back_to_login_button"):
                     st.session_state.show_signup = False
@@ -409,11 +434,21 @@ async def main():
                         
                         st.session_state.system_prompt = user_specific_prompt
                         st.success("Login successful!")
-                        log_audit_event(username_input, current_role, "USER_LOGIN_SUCCESS", f"User {username_input} logged in successfully.")
+                        get_audit_logger( # Replaced log_audit_event
+                            user=username_input, 
+                            role=current_role, 
+                            action="USER_LOGIN_SUCCESS", 
+                            details=f"User {username_input} logged in successfully."
+                        )
                         st.rerun()
                     else:
                         st.error("Invalid username or password")
-                        log_audit_event(username_input or "UNKNOWN_USER", "N/A", "USER_LOGIN_FAILURE", f"Failed login attempt for username: '{username_input}'.")
+                        get_audit_logger( # Replaced log_audit_event
+                            user=username_input or "UNKNOWN_USER", 
+                            role="N/A", 
+                            action="USER_LOGIN_FAILURE", 
+                            details=f"Failed login attempt for username: '{username_input}'."
+                        )
                 
                 if st.button("Create Account", key="show_signup_button"):
                     st.session_state.show_signup = True
@@ -428,7 +463,12 @@ async def main():
                 st.session_state.role = None # Clear role on logout
                 st.session_state.system_prompt = SYSTEM_PROMPT # Reset to global default on logout
                 st.session_state.show_signup = False # Reset signup view on logout
-                log_audit_event(logged_out_username, logged_out_role, "USER_LOGOUT", f"User {logged_out_username} logged out.")
+                get_audit_logger( # Replaced log_audit_event
+                    user=logged_out_username, 
+                    role=logged_out_role, 
+                    action="USER_LOGOUT", 
+                    details=f"User {logged_out_username} logged out."
+                )
                 st.rerun()
 
             st.markdown("---") # Separator
@@ -443,8 +483,8 @@ async def main():
             if new_prompt != st.session_state.system_prompt:
                 st.session_state.system_prompt = new_prompt
                 st.success("Session system prompt updated.")
-                log_audit_event(
-                    username=st.session_state.username, 
+                get_audit_logger( # Replaced log_audit_event
+                    user=st.session_state.username, 
                     role=st.session_state.get("role", "N/A"), 
                     action="SESSION_PROMPT_UPDATED", 
                     details=f"User updated session prompt. New prompt: '{new_prompt}'"
@@ -538,14 +578,29 @@ async def main():
                         current_batch_processed_content.append({"name": uploaded_file_data.name, "text": content})
                         st.success(f"Successfully extracted text from: {uploaded_file_data.name}")
                         action_details = f"Successfully extracted content from uploaded file: {uploaded_file_data.name}"
-                        log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "FILE_PROCESS_SUCCESS", action_details)
+                        get_audit_logger( # Replaced log_audit_event
+                            user=st.session_state.username, 
+                            role=st.session_state.get('role','N/A'), 
+                            action="FILE_PROCESS_SUCCESS", 
+                            details=action_details
+                        )
                     elif file_extension in ["pdf", "docx", "txt", "md"]:
                         st.error(f"Failed to extract text from: {uploaded_file_data.name} (see specific error above if any).")
                         action_details = f"Failed to extract content from uploaded file: {uploaded_file_data.name}"
-                        log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "FILE_PROCESS_FAILURE", action_details)
+                        get_audit_logger( # Replaced log_audit_event
+                            user=st.session_state.username, 
+                            role=st.session_state.get('role','N/A'), 
+                            action="FILE_PROCESS_FAILURE", 
+                            details=action_details
+                        )
                     else: # If skipped due to unsupported type and no content
                         action_details = f"Skipped unsupported file type: {uploaded_file_data.name}"
-                        log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "FILE_PROCESS_SKIPPED", action_details)
+                        get_audit_logger( # Replaced log_audit_event
+                            user=st.session_state.username, 
+                            role=st.session_state.get('role','N/A'), 
+                            action="FILE_PROCESS_SKIPPED", 
+                            details=action_details
+                        )
 
                     # progress_bar.progress((i + 1) / len(uploaded_files_new)) # Handled by st.status context
                 
@@ -633,13 +688,13 @@ async def main():
                 links_for_log = submitted_urls[:] # Copy list
                 if crawl_start_url: links_for_log.append(f"[CRAWL_START] {crawl_start_url}")
 
-                log_audit_event(
-                    username=st.session_state.username,
+                get_audit_logger( # Replaced log_audit_event
+                    user=st.session_state.username,
                     role=st.session_state.get('role','N/A'), 
                     action="REPORT_GENERATION_INITIATED",
                     details=details_str,
                     links=links_for_log if links_for_log else None,
-                    model_name=st.session_state.get("selected_model", "N/A")
+                    model=st.session_state.get("selected_model", "N/A")
                 )
 
                 with st.spinner("Processing inputs and generating report..."):
@@ -759,26 +814,48 @@ async def main():
                             query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
                             success_details = f"AI report generated for query: '{query_for_log}'. Docs: {len(processed_doc_names)}. Scraped URLs: {len(successfully_scraped_urls)}."
                             
-                            log_audit_event(
-                                username=st.session_state.username,
+                            get_audit_logger( # Replaced log_audit_event
+                                user=st.session_state.username,
                                 role=st.session_state.get('role','N/A'), 
                                 action="REPORT_GENERATION_SUCCESS", 
                                 details=success_details,
                                 links=successfully_scraped_urls if successfully_scraped_urls else None,
-                                model_name=model_to_use # Log model used
+                                model=model_to_use # Log model used
                             )
                         else:
                             st.session_state.unified_report_content = "Failed to generate AI report. The AI returned an empty response."
                             st.error("AI report generation failed or returned empty.")
                             query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
-                            log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_FAILURE", details=f"AI returned empty report for query: '{query_for_log}'")
-                            log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_FAILURE", details=f"AI returned empty report for query: '{query_for_log}'", model_name=model_to_use)
+                            get_audit_logger( # Replaced log_audit_event
+                                user=st.session_state.username,
+                                role=st.session_state.get('role','N/A'),
+                                action="REPORT_GENERATION_FAILURE",
+                                details=f"AI returned empty report for query: '{query_for_log}'"
+                            )
+                            get_audit_logger( # Replaced log_audit_event
+                                user=st.session_state.username,
+                                role=st.session_state.get('role','N/A'),
+                                action="REPORT_GENERATION_FAILURE",
+                                details=f"AI returned empty report for query: '{query_for_log}'",
+                                model=model_to_use
+                            )
                     except Exception as e:
                         st.session_state.unified_report_content = f"An error occurred during AI report generation: {str(e)}"
                         st.error(f"Error calling AI: {e}")
                         query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
-                        log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_ERROR", details=f"Error during AI call for query '{query_for_log}': {str(e)}")
-                        log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_ERROR", details=f"Error during AI call for query '{query_for_log}': {str(e)}", model_name=model_to_use)
+                        get_audit_logger( # Replaced log_audit_event
+                            user=st.session_state.username,
+                            role=st.session_state.get('role','N/A'),
+                            action="REPORT_GENERATION_ERROR",
+                            details=f"Error during AI call for query '{query_for_log}': {str(e)}"
+                        )
+                        get_audit_logger( # Replaced log_audit_event
+                            user=st.session_state.username,
+                            role=st.session_state.get('role','N/A'),
+                            action="REPORT_GENERATION_ERROR",
+                            details=f"Error during AI call for query '{query_for_log}': {str(e)}",
+                            model=model_to_use
+                        )
                     
                     # Remove the debug JSON output now that real processing is in place
                     # st.markdown("--- DEBUG: Information Collected ---\")
@@ -804,8 +881,8 @@ async def main():
                 file_name="unified_research_report.md",
                 mime="text/markdown",
                 key="download_actual_unified_report",
-                on_click=lambda: log_audit_event(
-                    username=st.session_state.username, 
+                on_click=lambda: get_audit_logger( # Replaced log_audit_event
+                    user=st.session_state.username, 
                     role=st.session_state.get('role', 'N/A'), 
                     action="REPORT_DOWNLOADED", 
                     details=f"User downloaded report: unified_research_report.md for query '{(st.session_state.get('research_query_input', 'QUERY_NOT_IN_SESSION_FOR_DOWNLOAD_LOG'))}'"
@@ -825,7 +902,7 @@ async def main():
         if st.session_state.get("role") == "admin":
             st.header("Admin Panel - Audit Logs")
             
-            log_file_path = Path("/app/logs/audit.log")
+            log_file_path = AUDIT_LOG_FILE_PATH 
             st.write(f"DEBUG: Checking for log file at: {log_file_path.resolve()}") # DEBUG
             log_data = []
 
@@ -863,6 +940,12 @@ async def main():
                         
                 except Exception as e:
                     st.error(f"Error reading or parsing audit log file: {e}")
+                    get_audit_logger( # Replaced log_audit_event
+                        user=st.session_state.username,
+                        role=st.session_state.role,
+                        action="AUDIT_LOG_READ_ERROR",
+                        details=f"Admin panel failed to read/parse audit log: {e}"
+                    )
             else:
                 st.warning("Audit log file not found. Logging may not be configured or no events logged yet.")
                 st.write(f"DEBUG: Attempted to access {log_file_path.resolve()} but it was not found.") # DEBUG
