@@ -118,6 +118,55 @@ This application is designed to be run using Docker and Docker Compose.
 5.  **Access the Application:**
     Open your web browser and go to `http://localhost:8501` (or the port specified in your `docker-compose.yml` or `.env`).
 
+### Deploying to Streamlit Cloud
+
+1. **Fork this repository** to your GitHub account.
+
+2. **Set up Streamlit Cloud**:
+   - Go to [Streamlit Cloud](https://streamlit.io/cloud)
+   - Sign in with your GitHub account
+   - Click "New app"
+   - Select your forked repository
+   - Set the main file path to `main.py`
+   - Click "Deploy"
+
+3. **Configure Secrets in Streamlit Cloud**:
+   - In your Streamlit Cloud dashboard, go to your app's settings
+   - Find the "Secrets" section
+   - Add the following secrets (copy from your `.env` file or `.streamlit/secrets.toml`):
+     ```toml
+     # OpenRouter API Configuration
+     OPENROUTER_API_KEY = "your_openrouter_api_key"
+     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+     OPENROUTER_PRIMARY_MODEL = "openai/gpt-4o"
+     OPENROUTER_FALLBACK_MODEL = "anthropic/claude-3-haiku"
+
+     # Firecrawl Configuration
+     FIRECRAWL_API_URL = "https://your-aws-firecrawl-instance.com/v0/scrape"
+     # FIRECRAWL_API_KEY = "your_firecrawl_api_key"  # If required
+
+     # Redis Configuration (if using Redis for caching)
+     REDIS_URL = "redis://your-redis-host:6379/0"
+
+     # Application Settings
+     APP_ENV = "production"
+     DEBUG = "false"
+     LOG_LEVEL = "info"
+     OUTPUT_FORMAT = "markdown"
+     MAX_REQUESTS_PER_HOUR = "100"
+     ```
+
+4. **Important Notes for Cloud Deployment**:
+   - Make sure your AWS-hosted Firecrawl instance is accessible from Streamlit Cloud
+   - If using Redis, ensure it's accessible from Streamlit Cloud
+   - Consider setting up proper authentication for your Firecrawl instance
+   - Monitor your OpenRouter API usage as it will be shared across all users
+
+5. **Accessing the Application**:
+   - Once deployed, Streamlit Cloud will provide you with a public URL
+   - Share this URL with your users
+   - Users can access the application through their web browser
+
 ---
 
 ## ⚙️ Configuration
