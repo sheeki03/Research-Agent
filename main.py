@@ -474,70 +474,76 @@ async def main():
                     # The research_query acts as the primary instruction/question.
                     # The system_prompt (in st.session_state.system_prompt) guides the AI's persona and output format.
                     
-                    full_prompt_for_ai = f"Research Query: {research_query}\n\n"
-                    
+                    # Construct the main instruction based on whether a user query was provided
+                    if research_query:
+                        full_prompt_for_ai = f"Research Query: {research_query}\\n\\n"
+                    else:
+                        # Default instruction if query is empty - rely on system prompt and content
+                        full_prompt_for_ai = "Research Goal: Please generate a comprehensive report based on the provided content (if any) and the overall objectives defined in the system prompt.\\n\\n"
+
+                    # Append document content if available
                     if combined_document_text:
-                        full_prompt_for_ai += f"Provided Document(s) Content:\n{combined_document_text}\n\n"
+                        full_prompt_for_ai += f"Provided Document(s) Content:\\n{combined_document_text}\\n\\n"
                     else:
-                        full_prompt_for_ai += "No documents were provided or processed.\n\n"
+                        full_prompt_for_ai += "No documents were provided or processed.\\n\\n"
                         
+                    # Append scraped web content if available
                     if combined_scraped_text:
-                        full_prompt_for_ai += f"Provided Web Content:\n{combined_scraped_text}\n\n"
+                        full_prompt_for_ai += f"Provided Web Content:\\n{combined_scraped_text}\\n\\n"
                     else:
-                        full_prompt_for_ai += "No web content was provided or successfully scraped.\n\n"
+                        full_prompt_for_ai += "No web content was provided or successfully scraped.\\n\\n"
                     
-                    full_prompt_for_ai += "Based on the research query and all the provided content above, please generate a comprehensive report."
+                    # Final instruction part
+                    full_prompt_for_ai += "Based on the research goal/query and all the provided content above, please generate a comprehensive report."
 
                     # 5. Call OpenRouterClient
                     # Ensure openrouter_client is initialized (it is, outside this button block)
                     
                     # --- DEBUGGING --- 
                     st.write("--- DEBUG INFO BEFORE AI CALL ---")
-                    st.write(f"Research Query Provided: {'Yes' if research_query else 'No'} (Content: '{research_query[:50]}...')")
+                    # Prepare query snippet for debugging, handling potential quotes
+                    debug_query_snippet = research_query[:50]
+                    if len(research_query) > 50:
+                        debug_query_snippet += "..."
+                    st.write(f"Research Query Provided: {'Yes' if research_query else 'No'} (Content: '{debug_query_snippet}')") # Use prepared snippet
                     st.write(f"Combined Document Text Provided: {'Yes' if combined_document_text else 'No'} (Length: {len(combined_document_text)})")
                     st.write(f"Combined Scraped Text Provided: {'Yes' if combined_scraped_text else 'No'} (Length: {len(combined_scraped_text)})")
                     st.write("--- END DEBUG INFO ---")
                     # --- END DEBUGGING ---
 
-                    if research_query or combined_document_text or combined_scraped_text: # Only call AI if there's something to process
-                        try:
-                            # Using generate_response_async as it's a more general method name likely in OpenRouterClient
-                            # The OpenRouterClient was previously using `analyze_ddq` or `generate_response`.
-                            # We need a general method. Assuming `generate_response` or `generate_response_async` is suitable.
-                            # The method in openrouter.py is `generate_response` which is async.
-                            ai_generated_report = await openrouter_client.generate_response(
-                                prompt=full_prompt_for_ai, 
-                                system_prompt=st.session_state.system_prompt
+                    try:
+                        ai_generated_report = await openrouter_client.generate_response(
+                            prompt=full_prompt_for_ai, 
+                            system_prompt=st.session_state.system_prompt
+                        )
+                        if ai_generated_report:
+                            st.session_state.unified_report_content = ai_generated_report
+                            st.success("AI Report generated successfully!")
+                            
+                            successfully_scraped_urls = [item['url'] for item in st.session_state.scraped_web_content if item["status"] == "success"]
+                            query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
+                            success_details = f"AI report generated for query: '{query_for_log}'. Docs: {len(processed_doc_names)}. Scraped URLs: {len(successfully_scraped_urls)}."
+                            
+                            log_audit_event(
+                                username=st.session_state.username, 
+                                role=st.session_state.get('role','N/A'), 
+                                action="REPORT_GENERATION_SUCCESS", 
+                                details=success_details,
+                                links=successfully_scraped_urls if successfully_scraped_urls else None
                             )
-                            if ai_generated_report:
-                                st.session_state.unified_report_content = ai_generated_report
-                                st.success("AI Report generated successfully!")
-                                
-                                successfully_scraped_urls = [item['url'] for item in st.session_state.scraped_web_content if item["status"] == "success"]
-                                success_details = f"AI report generated for query: '{research_query}'. Docs: {len(processed_doc_names)}. Scraped URLs: {len(successfully_scraped_urls)}."
-                                
-                                log_audit_event(
-                                    username=st.session_state.username, 
-                                    role=st.session_state.get('role','N/A'), 
-                                    action="REPORT_GENERATION_SUCCESS", 
-                                    details=success_details,
-                                    links=successfully_scraped_urls if successfully_scraped_urls else None
-                                )
-                            else:
-                                st.session_state.unified_report_content = "Failed to generate AI report. The AI returned an empty response."
-                                st.error("AI report generation failed or returned empty.")
-                                log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_FAILURE", details=f"AI returned empty report for query: '{research_query}'")
-                        except Exception as e:
-                            st.session_state.unified_report_content = f"An error occurred during AI report generation: {str(e)}"
-                            st.error(f"Error calling AI: {e}")
-                            log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_ERROR", details=f"Error during AI call for query '{research_query}': {str(e)}")
-                    else:
-                        st.session_state.unified_report_content = "No input (query, documents, or URLs) was provided to generate a report."
-                        st.warning("No input provided for the report.")
-                        log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "REPORT_GENERATION_SKIPPED", "No input provided by user.")
+                        else:
+                            st.session_state.unified_report_content = "Failed to generate AI report. The AI returned an empty response."
+                            st.error("AI report generation failed or returned empty.")
+                            query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
+                            log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_FAILURE", details=f"AI returned empty report for query: '{query_for_log}'")
+                    except Exception as e:
+                        st.session_state.unified_report_content = f"An error occurred during AI report generation: {str(e)}"
+                        st.error(f"Error calling AI: {e}")
+                        query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
+                        log_audit_event(username=st.session_state.username, role=st.session_state.get('role','N/A'), action="REPORT_GENERATION_ERROR", details=f"Error during AI call for query '{query_for_log}': {str(e)}")
                     
                     # Remove the debug JSON output now that real processing is in place
-                    # st.markdown("--- DEBUG: Information Collected ---")
+                    # st.markdown("--- DEBUG: Information Collected ---\")
                     # st.json({
                     #     "research_query": research_query,
                     #     "processed_documents": st.session_state.processed_documents_content,
