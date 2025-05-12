@@ -1,5 +1,4 @@
 import os
-import streamlit as st
 from pathlib import Path
 from typing import Literal, Dict
 from datetime import datetime
@@ -18,35 +17,27 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 # OpenRouter Configuration
-OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 if not OPENROUTER_API_KEY:
-    st.warning("Warning: OPENROUTER_API_KEY is not set in Streamlit secrets. API calls will fail.")
+    print("Warning: OPENROUTER_API_KEY is not set. API calls will fail.")
 
-OPENROUTER_BASE_URL = st.secrets.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-OPENROUTER_PRIMARY_MODEL = st.secrets.get("OPENROUTER_PRIMARY_MODEL", "openai/gpt-4o")
-OPENROUTER_FALLBACK_MODEL = st.secrets.get("OPENROUTER_FALLBACK_MODEL", "anthropic/claude-3-haiku")
-
-# Firecrawl Configuration
-FIRECRAWL_API_URL = st.secrets.get("FIRECRAWL_API_URL")
-if not FIRECRAWL_API_URL:
-    st.warning("Warning: FIRECRAWL_API_URL is not set in Streamlit secrets. Web scraping will fail.")
-
-# Redis Configuration
-REDIS_URL = st.secrets.get("REDIS_URL")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_PRIMARY_MODEL = os.getenv("OPENROUTER_PRIMARY_MODEL", "tngtech/deepseek-r1t-chimera:free")
+OPENROUTER_FALLBACK_MODEL = os.getenv("OPENROUTER_FALLBACK_MODEL", "deepseek/deepseek-r1:free")
 
 # Application Settings
-APP_ENV = st.secrets.get("APP_ENV", "development")
-DEBUG = st.secrets.get("DEBUG", "true").lower() == "true"
-LOG_LEVEL = st.secrets.get("LOG_LEVEL", "debug").upper()
+APP_ENV = os.getenv("APP_ENV", "development")
+DEBUG = os.getenv("DEBUG", "true").lower() == "true"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "debug").upper()
 
 # Output Configuration
 OutputFormat = Literal["markdown", "docx"]
-OUTPUT_FORMAT: OutputFormat = st.secrets.get("OUTPUT_FORMAT", "markdown")  # type: ignore
+OUTPUT_FORMAT: OutputFormat = os.getenv("OUTPUT_FORMAT", "markdown")  # type: ignore
 DOCUMENT_TITLE_PREFIX = "DDQ Research Report"
 DOCUMENT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 # Rate Limiting
-MAX_REQUESTS_PER_HOUR = int(st.secrets.get("MAX_REQUESTS_PER_HOUR", "100"))
+MAX_REQUESTS_PER_HOUR = int(os.getenv("MAX_REQUESTS_PER_HOUR", "100"))
 
 # System Prompt
 SYSTEM_PROMPT = """YOU ARE A WORLD-CLASS DUE-DILIGENCE RESEARCH ANALYST WITH UNMATCHED EXPERTISE IN FINANCE, BLOCKCHAIN TECHNOLOGY,  CRYPTOCURRENCIES AND TOKENOMICS.  

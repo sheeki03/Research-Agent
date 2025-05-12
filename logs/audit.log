@@ -3883,3 +3883,86 @@
 2025-05-12 06:47:07 | USER: sheeki | ROLE: researcher | ACTION: FILE_PROCESS_SUCCESS | LINKS: N/A | DETAILS: Successfully extracted content from uploaded file: LOOP Token Legal Opinion - Loopfi - STORM Partners - 04.07.2024 (signed).pdf
 2025-05-12 06:47:26 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/, https://docs.loopfi.xyz/the-protocol/dlp-locking-dynamic-liquidity-and-boost | DETAILS: Research Query: ''. Files: 1 (LOOP Token Legal Opinion - Loopfi - STORM Partners - 04.07.2024 (signed).pdf). URLs: 2.
 2025-05-12 06:48:10 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopfi.xyz/, https://docs.loopfi.xyz/the-protocol/dlp-locking-dynamic-liquidity-and-boost | DETAILS: AI report generated for query: ''. Docs: 1. Scraped URLs: 2.
+2025-05-12 12:18:07 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 12:18:11 | USER: sheeki | ROLE: researcher | ACTION: FILE_PROCESS_SUCCESS | LINKS: N/A | DETAILS: Successfully extracted content from uploaded file: Loop Whitepaper (1).pdf
+2025-05-12 12:18:19 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopedhype.com/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Research Query: ''. Files: 1 (Loop Whitepaper (1).pdf). URLs: 3.
+2025-05-12 12:18:21 | USER: sheeki | ROLE: researcher | ACTION: URL_SCRAPE_FAILURE | LINKS: https://docs.loopedhype.com/ | DETAILS: Failed to scrape: https://docs.loopedhype.com/. Error: Firecrawl API error (404): <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot POST /v1/scrape/v0/scrape</pre>
+</body>
+</html>
+
+2025-05-12 12:18:21 | USER: sheeki | ROLE: researcher | ACTION: URL_SCRAPE_FAILURE | LINKS: https://docs.loopfi.xyz/the-launch/the-points-program | DETAILS: Failed to scrape: https://docs.loopfi.xyz/the-launch/the-points-program. Error: Firecrawl API error (404): <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot POST /v1/scrape/v0/scrape</pre>
+</body>
+</html>
+
+2025-05-12 12:18:21 | USER: sheeki | ROLE: researcher | ACTION: URL_SCRAPE_FAILURE | LINKS: https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Failed to scrape: https://docs.loopfi.xyz/the-launch/loop-olympics. Error: Firecrawl API error (404): <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot POST /v1/scrape/v0/scrape</pre>
+</body>
+</html>
+
+2025-05-12 12:19:46 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 12:19:51 | USER: sheeki | ROLE: researcher | ACTION: FILE_PROCESS_SUCCESS | LINKS: N/A | DETAILS: Successfully extracted content from uploaded file: Loop Whitepaper (1).pdf
+2025-05-12 12:20:07 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Research Query: ''. Files: 1 (Loop Whitepaper (1).pdf). URLs: 3.
+2025-05-12 12:20:09 | USER: sheeki | ROLE: researcher | ACTION: URL_SCRAPE_FAILURE | LINKS: https://docs.loopfi.xyz/ | DETAILS: Failed to scrape: https://docs.loopfi.xyz/. Error: Firecrawl API error (404): <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot POST /v1/scrape/v0/scrape</pre>
+</body>
+</html>
+
+2025-05-12 12:20:09 | USER: sheeki | ROLE: researcher | ACTION: URL_SCRAPE_FAILURE | LINKS: https://docs.loopfi.xyz/the-launch/the-points-program | DETAILS: Failed to scrape: https://docs.loopfi.xyz/the-launch/the-points-program. Error: Firecrawl API error (404): <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot POST /v1/scrape/v0/scrape</pre>
+</body>
+</html>
+
+2025-05-12 12:20:09 | USER: sheeki | ROLE: researcher | ACTION: URL_SCRAPE_FAILURE | LINKS: https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Failed to scrape: https://docs.loopfi.xyz/the-launch/loop-olympics. Error: Firecrawl API error (404): <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot POST /v1/scrape/v0/scrape</pre>
+</body>
+</html>
+
+2025-05-12 12:21:42 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: N/A | DETAILS: AI report generated for query: ''. Docs: 1. Scraped URLs: 0.
+2025-05-12 12:28:47 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 12:28:51 | USER: sheeki | ROLE: researcher | ACTION: FILE_PROCESS_SUCCESS | LINKS: N/A | DETAILS: Successfully extracted content from uploaded file: Loop Whitepaper (1).pdf
+2025-05-12 12:29:01 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopedhype.com/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Research Query: ''. Files: 1 (Loop Whitepaper (1).pdf). URLs: 3.
+2025-05-12 12:30:09 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopedhype.com/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: AI report generated for query: ''. Docs: 1. Scraped URLs: 3.
+2025-05-12 12:31:30 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 12:31:39 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopedhype.com/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Research Query: ''. Files: 0 (). URLs: 3.
+2025-05-12 12:32:27 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopedhype.com/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: AI report generated for query: ''. Docs: 0. Scraped URLs: 3.
+2025-05-12 12:38:59 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | LINKS: N/A | DETAILS: User sheeki logged in successfully.
+2025-05-12 12:39:10 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_INITIATED | LINKS: https://docs.loopfi.xyz/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: Research Query: ''. Files: 0 (). URLs: 3.
+2025-05-12 12:40:45 | USER: sheeki | ROLE: researcher | ACTION: REPORT_GENERATION_SUCCESS | LINKS: https://docs.loopfi.xyz/, https://docs.loopfi.xyz/the-launch/the-points-program, https://docs.loopfi.xyz/the-launch/loop-olympics | DETAILS: AI report generated for query: ''. Docs: 0. Scraped URLs: 3.
