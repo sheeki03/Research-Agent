@@ -490,6 +490,15 @@ async def main():
 
                     # 5. Call OpenRouterClient
                     # Ensure openrouter_client is initialized (it is, outside this button block)
+                    
+                    # --- DEBUGGING --- 
+                    st.write("--- DEBUG INFO BEFORE AI CALL ---")
+                    st.write(f"Research Query Provided: {'Yes' if research_query else 'No'} (Content: '{research_query[:50]}...')")
+                    st.write(f"Combined Document Text Provided: {'Yes' if combined_document_text else 'No'} (Length: {len(combined_document_text)})")
+                    st.write(f"Combined Scraped Text Provided: {'Yes' if combined_scraped_text else 'No'} (Length: {len(combined_scraped_text)})")
+                    st.write("--- END DEBUG INFO ---")
+                    # --- END DEBUGGING ---
+
                     if research_query or combined_document_text or combined_scraped_text: # Only call AI if there's something to process
                         try:
                             # Using generate_response_async as it's a more general method name likely in OpenRouterClient
