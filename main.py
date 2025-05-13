@@ -520,7 +520,7 @@ async def main():
         # --- End Model Selection Section ---
 
         # Research Query Input
-        st.subheader("1. Define Your Research Focus")
+        st.subheader("1. Define Your Research Focus (Optional)")
         research_query = st.text_area(
             "Enter your research query or specific questions:",
             height=100,
@@ -651,6 +651,7 @@ async def main():
 
         # --- Add Crawl Input Section --- (Header 4)
         st.subheader("4. Crawl & Scrape Site (Optional)")
+        st.markdown("This feature will start at the given URL, find links to other pages on the same website (same domain), and then scrape their content. You can set the maximum number of pages to scrape using the 'Crawl Limit' below.")
         crawl_start_url = st.text_input(
             "Starting URL for Crawl:",
             key="crawl_start_url_input",

@@ -4088,3 +4088,7 @@
 2025-05-12 20:49:11 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User sheeki logged in successfully.
 2025-05-12 20:49:15 | USER: sheeki | ROLE: researcher | ACTION: USER_LOGOUT | MODEL: N/A | LINKS: N/A | DETAILS: User sheeki logged out.
 2025-05-12 20:49:20 | USER: admin | ROLE: admin | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User admin logged in successfully.
+2025-05-13 07:31:32 | USER: admin | ROLE: admin | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User admin logged in successfully.
+2025-05-13 07:31:49 | USER: admin | ROLE: admin | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User admin logged in successfully.
+2025-05-13 07:32:47,567 | USER: SYSTEM | ROLE: SYSTEM | HOST: 828aeaa08705 | ACTION: INIT | MODEL: N/A | LINKS: N/A | DETAILS: Audit logger successfully initialized.
+2025-05-13 07:32:53,109 | USER: sheeki | ROLE: researcher | HOST: 828aeaa08705 | ACTION: USER_LOGIN_SUCCESS | MODEL: N/A | LINKS: N/A | DETAILS: User sheeki logged in successfully.
