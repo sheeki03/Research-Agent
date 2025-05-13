@@ -36,6 +36,7 @@ from src.config import (
 from src.openrouter import OpenRouterClient
 from src.firecrawl_client import FirecrawlClient
 from src.audit_logger import get_audit_logger, AUDIT_LOG_FILE_PATH # Updated import
+from src.core.scanner_utils import discover_sitemap_urls # Added import
 
 # Initialize clients
 @st.cache_resource
@@ -347,6 +348,17 @@ async def main():
         st.session_state.scraped_web_content = []
     if "crawled_web_content" not in st.session_state:
         st.session_state.crawled_web_content = []
+    # Session state for sitemap scanning (Task 2.2)
+    if "discovered_sitemap_urls" not in st.session_state:
+        st.session_state.discovered_sitemap_urls = []
+    if "sitemap_scan_in_progress" not in st.session_state:
+        st.session_state.sitemap_scan_in_progress = False
+    if "sitemap_scan_error" not in st.session_state:
+        st.session_state.sitemap_scan_error = None
+    if "sitemap_scan_completed" not in st.session_state: # To know if a scan has been attempted
+        st.session_state.sitemap_scan_completed = False
+    if "selected_sitemap_urls" not in st.session_state: # For Task 2.3
+        st.session_state.selected_sitemap_urls = set() # Using a set for selected URLs
 
     # Sidebar
     with st.sidebar:
@@ -651,7 +663,157 @@ async def main():
 
         # --- Add Crawl Input Section --- (Header 4)
         st.subheader("4. Crawl & Scrape Site (Optional)")
-        st.markdown("This feature will start at the given URL, find links to other pages on the same website (same domain), and then scrape their content. You can set the maximum number of pages to scrape using the 'Crawl Limit' below.")
+        st.markdown("""
+This section offers two methods to gather content from a website. Choose one option if you wish to use these features:
+
+- **Option 4a (Scan & Select):** Scans a site's sitemap to list its URLs, allowing you to select specific pages for scraping. This is useful when you want to target particular pages from a known list.
+- **Option 4b (Crawl & Discover):** Starts at a given URL and automatically crawls the site by following links to other pages on the same website, scraping their content up to a specified limit. This is useful for broader content discovery when you don't have a specific list of pages.
+
+If you use **Option 4a**, the URLs you select will be used for scraping when you generate the report. 
+If you use **Option 4b**, the crawled pages will be used. 
+If specific URLs are provided via sitemap selection (4a) or manual entry in section 3, crawling (4b) will be skipped even if a start URL is provided for it.
+""")
+        
+        st.markdown("**Option 4a: Scan Site for Specific URLs from Sitemap**")
+        site_to_scan_url = st.text_input(
+            "URL to Scan for Sitemaps:",
+            key="site_to_scan_url_input",
+            placeholder="https://example.com (domain or full URL)",
+            help="Enter a website URL to scan its sitemap for a list of all its pages. You can then select which pages to scrape."
+        )
+        # Placeholder for Scan Site button logic (Task 2.2)
+        if st.button("Scan Site for URLs", key="scan_site_button", disabled=st.session_state.sitemap_scan_in_progress):
+            if site_to_scan_url:
+                st.session_state.sitemap_scan_in_progress = True
+                st.session_state.discovered_sitemap_urls = [] # Clear previous results
+                st.session_state.sitemap_scan_error = None
+                st.session_state.sitemap_scan_completed = False # Reset completed flag
+                
+                # Log scan initiation
+                get_audit_logger(
+                    user=st.session_state.username,
+                    role=st.session_state.get('role', 'N/A'),
+                    action="SITEMAP_SCAN_INITIATED",
+                    details=f"Sitemap scan initiated for URL: {site_to_scan_url}"
+                )
+
+                try:
+                    # Use a spinner for better UX during async operation
+                    with st.spinner(f"Scanning {site_to_scan_url} for sitemap URLs... Please wait."):
+                        discovered_urls = await discover_sitemap_urls(site_to_scan_url)
+                    
+                    st.session_state.discovered_sitemap_urls = discovered_urls
+                    st.session_state.sitemap_scan_completed = True
+                    if discovered_urls:
+                        st.success(f"Scan complete! Found {len(discovered_urls)} URLs.")
+                        get_audit_logger(
+                            user=st.session_state.username,
+                            role=st.session_state.get('role', 'N/A'),
+                            action="SITEMAP_SCAN_SUCCESS",
+                            details=f"Sitemap scan successful for {site_to_scan_url}. Found {len(discovered_urls)} URLs."
+                        )
+                    else:
+                        st.info(f"Scan complete. No URLs found for {site_to_scan_url} via sitemaps.")
+                        get_audit_logger(
+                            user=st.session_state.username,
+                            role=st.session_state.get('role', 'N/A'),
+                            action="SITEMAP_SCAN_NO_URLS_FOUND",
+                            details=f"Sitemap scan completed for {site_to_scan_url}, but no URLs were found."
+                        )
+                except Exception as e:
+                    st.session_state.sitemap_scan_error = f"An error occurred during sitemap scan: {str(e)}"
+                    st.error(st.session_state.sitemap_scan_error)
+                    st.session_state.sitemap_scan_completed = True # Mark as completed even on error to stop spinner logic if page reloads
+                    get_audit_logger(
+                        user=st.session_state.username,
+                        role=st.session_state.get('role', 'N/A'),
+                        action="SITEMAP_SCAN_ERROR",
+                        details=f"Sitemap scan failed for {site_to_scan_url}: {str(e)}"
+                    )
+                finally:
+                    st.session_state.sitemap_scan_in_progress = False
+                    st.rerun() # Rerun to update UI based on scan results / error
+            else:
+                st.warning("Please enter a URL to scan.")
+
+        # Displaying scan progress or results (Task 2.3 will enhance this)
+        if st.session_state.sitemap_scan_in_progress:
+            st.info("Sitemap scan in progress...") # This might be brief due to spinner + rerun
+        elif st.session_state.sitemap_scan_completed:
+            if st.session_state.sitemap_scan_error:
+                st.error(f"Scan failed: {st.session_state.sitemap_scan_error}")
+            elif st.session_state.discovered_sitemap_urls:
+                st.success(f"Scan complete! Found {len(st.session_state.discovered_sitemap_urls)} URLs.")
+                
+                st.subheader("Select URLs for Scraping:")
+
+                # Select All / Deselect All buttons
+                col1, col2, col_spacer = st.columns([1,1,5])
+                with col1:
+                    if st.button("Select All", key="select_all_sitemap_urls"):
+                        st.session_state.selected_sitemap_urls = set(st.session_state.discovered_sitemap_urls)
+                        st.rerun()
+                with col2:
+                    if st.button("Deselect All", key="deselect_all_sitemap_urls"):
+                        st.session_state.selected_sitemap_urls = set()
+                        st.rerun()
+
+                # Use a container for scrollability if many URLs
+                # Max height for the checkbox list container
+                max_height = "300px" 
+                # Create a string for inline CSS style for the container
+                container_style = f"max-height: {max_height}; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px;"
+                
+                # Markdown to inject CSS for the container class
+                # st.markdown(f'''
+                # <style>
+                # .checkbox-container {{
+                #     max-height: {max_height};
+                #     overflow-y: auto;
+                #     border: 1px solid #ccc;
+                #     padding: 10px;
+                #     border-radius: 5px;
+                # }}
+                # </style>
+                # ''', unsafe_allow_html=True)
+                # Instead of injecting CSS, use st.container() and manage checkboxes within it.
+                # However, st.container() itself doesn't directly support height and overflow styling like a div.
+                # A common workaround is to display a limited number or use st.expander for very long lists.
+                # For now, let's list them. If too many, consider pagination or virtualization later.
+
+                # For simplicity, we will list all. Streamlit will handle scroll if the main page area becomes too long.
+                # Or, we can show a limited number with a message.
+                # Let's show all checkboxes. Streamlit might make the section scrollable if content overflows page.
+                # We will manage selections directly by updating the set on checkbox interaction.
+
+                for i, url in enumerate(st.session_state.discovered_sitemap_urls):
+                    # Define a callback function for this specific checkbox
+                    def checkbox_changed(url_to_toggle):
+                        if url_to_toggle in st.session_state.selected_sitemap_urls:
+                            st.session_state.selected_sitemap_urls.remove(url_to_toggle)
+                        else:
+                            st.session_state.selected_sitemap_urls.add(url_to_toggle)
+                    
+                    # Check if the URL is currently selected
+                    is_selected = url in st.session_state.selected_sitemap_urls
+                    
+                    # Create the checkbox
+                    # Using a unique key by index or URL itself to ensure state is maintained across reruns
+                    st.checkbox(
+                        url, 
+                        value=is_selected, 
+                        key=f"sitemap_url_cb_{i}_{url}", # Unique key
+                        on_change=checkbox_changed, 
+                        args=(url,)
+                    )
+                
+                if st.session_state.discovered_sitemap_urls:
+                     st.caption(f"{len(st.session_state.selected_sitemap_urls)} / {len(st.session_state.discovered_sitemap_urls)} URLs selected.")
+
+            else: # Scan completed, no error, but no URLs
+                st.info("Scan completed. No URLs were found from sitemaps for the provided site.")
+
+        st.markdown("**Option 4b: Crawl and Scrape Starting from URL**")
         crawl_start_url = st.text_input(
             "Starting URL for Crawl:",
             key="crawl_start_url_input",
@@ -672,50 +834,85 @@ async def main():
         # Report Generation
         st.subheader("5. Generate Report")
         if st.button("Generate Unified Report", key="generate_unified_report_button"):
-            # Modified input check: Need query OR docs OR explicit URLs OR crawl URL
-            if not research_query and not st.session_state.processed_documents_content and not submitted_urls and not crawl_start_url:
-                st.warning("Please provide a research query, upload documents, enter specific URLs, or provide a starting URL to crawl.")
+            # Check if any input is provided
+            if not (
+                research_query or 
+                st.session_state.processed_documents_content or 
+                submitted_urls or 
+                crawl_start_url or 
+                st.session_state.get("selected_sitemap_urls")
+            ):
+                st.warning("Please provide a research query, upload documents, enter specific URLs, provide a starting URL to crawl, or select URLs from a site scan.")
             else:
                 # Clear previous report content and results
                 st.session_state.unified_report_content = ""
-                st.session_state.scraped_web_content = [] # Clear previous specific scrape results
-                st.session_state.crawled_web_content = [] # Clear previous crawl results
+                st.session_state.scraped_web_content = [] 
+                st.session_state.crawled_web_content = []
 
-                # Log the report generation attempt (include crawl info if provided)
-                crawl_info = f" Crawl Start: '{crawl_start_url}', Limit: {crawl_limit}." if crawl_start_url else ""
+                # Determine which URLs to use for specific scraping and set up logging info
+                urls_to_use_for_specific_scraping = []
+                scrape_source_log_message = "No specific URLs defined for scraping."
+                log_links_for_scraping = []
+
+                if st.session_state.get("selected_sitemap_urls"): # Priority 1
+                    urls_to_use_for_specific_scraping = list(st.session_state.selected_sitemap_urls)
+                    scrape_source_log_message = f"{len(urls_to_use_for_specific_scraping)} URLs selected from sitemap scan."
+                    log_links_for_scraping = urls_to_use_for_specific_scraping[:]
+                elif submitted_urls: # Priority 2 (from text area)
+                    urls_to_use_for_specific_scraping = submitted_urls[:]
+                    scrape_source_log_message = f"{len(urls_to_use_for_specific_scraping)} URLs provided via text input."
+                    log_links_for_scraping = urls_to_use_for_specific_scraping[:]
+
+                # Prepare details for the initial audit log
                 processed_doc_names = [doc['name'] for doc in st.session_state.processed_documents_content]
-                details_str = f"Research Query: '{research_query}'. Files: {len(processed_doc_names)} ({', '.join(processed_doc_names[:3])}{'...' if len(processed_doc_names) > 3 else ''}). Specific URLs: {len(submitted_urls)}.{crawl_info}"
+                log_details_parts = [
+                    f"Research Query: '{research_query}'" if research_query else "No research query.",
+                    f"Files: {len(processed_doc_names)} ({(', '.join(processed_doc_names[:3]) + '...') if len(processed_doc_names) > 3 else ', '.join(processed_doc_names)})."
+                ]
                 
-                links_for_log = submitted_urls[:] # Copy list
-                if crawl_start_url: links_for_log.append(f"[CRAWL_START] {crawl_start_url}")
+                current_action_links_for_log = list(log_links_for_scraping) # Start with specific URLs if any
 
-                get_audit_logger( # Replaced log_audit_event
+                if urls_to_use_for_specific_scraping:
+                    log_details_parts.append(f"Specific URLs Source: {scrape_source_log_message}")
+                    if crawl_start_url: # If specific URLs are used, note that crawl (if input) is skipped
+                        log_details_parts.append(f"Crawl from '{crawl_start_url}': Skipped due to specific URLs being processed.")
+                elif crawl_start_url: # No specific URLs, but crawl URL is provided
+                    log_details_parts.append(f"Crawl: From '{crawl_start_url}', Limit: {crawl_limit}.")
+                    current_action_links_for_log.append(f"[CRAWL_START] {crawl_start_url}")
+                else: # No specific URLs and no crawl URL
+                    log_details_parts.append("Web Content: No specific URLs or crawl initiated.")
+
+                final_details_str_for_log = " ".join(log_details_parts)
+
+                get_audit_logger(
                     user=st.session_state.username,
                     role=st.session_state.get('role','N/A'), 
                     action="REPORT_GENERATION_INITIATED",
-                    details=details_str,
-                    links=links_for_log if links_for_log else None,
+                    details=final_details_str_for_log,
+                    links=current_action_links_for_log if current_action_links_for_log else None,
                     model=st.session_state.get("selected_model", "N/A")
                 )
 
                 with st.spinner("Processing inputs and generating report..."):
-                    # --- Stage 1a: Scrape Specific URLs ---
-                    if submitted_urls:
-                        st.info(f"Starting web scraping for {len(submitted_urls)} specific URL(s)...")
-                        scraped_data_specific = await process_urls(submitted_urls, firecrawl_client)
-                        st.session_state.scraped_web_content = scraped_data_specific # Store specific results
-                        # ... (keep existing feedback logic for specific URLs) ...
+                    # --- Stage 1a: Scrape Specific URLs (from sitemap selection or text area) ---
+                    if urls_to_use_for_specific_scraping:
+                        # Use the more descriptive scrape_source_log_message for UI feedback
+                        ui_scrape_message_short = scrape_source_log_message.split('.')[0] # e.g., "X URLs selected from sitemap scan"
+                        st.info(f"Starting web scraping for {len(urls_to_use_for_specific_scraping)} specific URL(s) ({ui_scrape_message_short})...")
+                        scraped_data_specific = await process_urls(urls_to_use_for_specific_scraping, firecrawl_client)
+                        st.session_state.scraped_web_content = scraped_data_specific
                     else:
-                        st.info("No specific URLs provided for web scraping.")
+                        st.info("No specific URLs (from sitemap scan or text input) to scrape.")
                         
-                    # --- Stage 1b: Crawl & Scrape Site ---
-                    if crawl_start_url:
-                        # Call the new crawl function
+                    # --- Stage 1b: Crawl & Scrape Site (only if no specific URLs were processed and crawl_start_url is provided) ---
+                    if crawl_start_url and not urls_to_use_for_specific_scraping:
+                        st.info(f"No specific URLs provided/selected. Proceeding with site crawl from {crawl_start_url}...")
                         crawled_data = await crawl_and_scrape_site(crawl_start_url, crawl_limit, firecrawl_client)
                         st.session_state.crawled_web_content = crawled_data
-                        # Feedback is handled within the crawl function
-                    else:
-                        st.info("No starting URL provided for site crawl.")
+                    elif crawl_start_url and urls_to_use_for_specific_scraping:
+                        st.info(f"Site crawl from '{crawl_start_url}' was skipped because specific URLs were selected/provided.")
+                    elif not crawl_start_url and not urls_to_use_for_specific_scraping: # If no specific URLs and no crawl URL (but other inputs like docs exist)
+                        st.info("No starting URL provided for site crawl, and no specific URLs selected/entered.")
                     
                     # --- Task 4: Combined Analysis & Report Generation --- 
                     st.info("Combining processed content and generating AI report...")
