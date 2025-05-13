@@ -33,9 +33,6 @@ A Streamlit-based web application designed to assist with due diligence and rese
 
 ```text
 .
-├── .cursor/                # Cursor IDE specific files (in .gitignore)
-│   ├── scratchpad.md       # Development notes and plans
-│   └── ...                 # Other Cursor specific files
 ├── config/                 # Configuration files
 │   └── users.yaml          # User credentials and settings (in .gitignore)
 ├── logs/                   # Application and audit logs (in .gitignore)

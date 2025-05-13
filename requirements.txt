@@ -27,3 +27,7 @@ PyMuPDF # For PDF processing (fitz)
 python-docx # For DOCX processing
 pandas>=1.5.0,<3.0.0
 httpx>=0.27.0 # For async HTTP requests
+
+# For RAG (Retrieval Augmented Generation)
+sentence-transformers
+faiss-cpu

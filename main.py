@@ -4,7 +4,7 @@ import bcrypt
 import os
 from pathlib import Path
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import io
 import re # Added for link extraction
 from urllib.parse import urlparse, urljoin # Added for link processing
@@ -37,6 +37,22 @@ from src.openrouter import OpenRouterClient
 from src.firecrawl_client import FirecrawlClient
 from src.audit_logger import get_audit_logger, AUDIT_LOG_FILE_PATH # Updated import
 from src.core.scanner_utils import discover_sitemap_urls # Added import
+
+# --- Add imports for Chat Models ---
+from src.models.chat_models import ChatMessageInput, ChatMessageOutput, ChatSession, ChatHistoryItem
+import uuid # For generating session IDs
+# --- End imports for Chat Models ---
+
+# --- Add imports for RAG ---
+from src.core.rag_utils import (
+    get_embedding_model,
+    split_text_into_chunks,
+    build_faiss_index,
+    search_faiss_index,
+    DEFAULT_EMBEDDING_MODEL, # Optional: if you want to reference it directly
+    TOP_K_RESULTS
+)
+# --- End imports for RAG ---
 
 # Initialize clients
 @st.cache_resource
@@ -322,12 +338,201 @@ def parse_log_line(line: str) -> Optional[Dict[str, str]]:
     return log_entry
 # --- End Function ---
 
+# --- Chat UI / Logic Functions ---
+
+def get_or_create_chat_session(report_id: str, session_id: Optional[str] = None) -> ChatSession:
+    """Retrieves an existing chat session from st.session_state or creates a new one."""
+    if "chat_sessions_store" not in st.session_state:
+        st.session_state.chat_sessions_store = {}
+
+    if session_id and session_id in st.session_state.chat_sessions_store:
+        session = st.session_state.chat_sessions_store[session_id]
+        if session.report_id == report_id:
+            return session
+        # else: if session_id is for a different report, we should create a new one for this report_id
+        # This logic implies that session_id might be tied to a report view, not globally unique across reports.
+        # For simplicity, if a session_id is passed but for wrong report, we create a new one for current report.
+
+    # Create a new session for the current report_id
+    new_session = ChatSession(report_id=report_id) # ChatSession model generates its own session_id
+    st.session_state.chat_sessions_store[new_session.session_id] = new_session
+    # Store the new session_id as the active one for the current chat interface context
+    st.session_state.current_chat_session_id = new_session.session_id 
+    return new_session
+
+async def handle_chat_submission(user_query: str, report_id: str, current_session_id: Optional[str]) -> Tuple[str, str]:
+    """Handles user chat submission, gets LLM response using RAG, updates history, returns AI response and session_id."""
+    session = get_or_create_chat_session(report_id=report_id, session_id=current_session_id)
+    session.history.append(ChatHistoryItem(role="user", content=user_query))
+
+    # --- AI Logic (Task 10: RAG Integration) ---
+    ai_response_content = "Sorry, I encountered an error trying to process your question with RAG."
+    retrieved_context_for_llm = "No specific context retrieved from RAG for this query."
+
+    try:
+        embedding_model = get_embedding_model() # Cached model
+        rag_data_for_report = st.session_state.get("rag_contexts", {}).get(report_id)
+
+        if rag_data_for_report and rag_data_for_report.get("index") is not None and rag_data_for_report.get("chunks") is not None:
+            faiss_index = rag_data_for_report["index"]
+            text_chunks = rag_data_for_report["chunks"]
+            
+            # st.write(f"DEBUG: RAG index found for report {report_id}. Chunks: {len(text_chunks)}. Index items: {faiss_index.ntotal if faiss_index else 'N/A'}")
+            
+            with st.spinner("Searching relevant context for your query..."):
+                relevant_chunks = search_faiss_index(
+                    index=faiss_index, 
+                    query_text=user_query, 
+                    embedding_model=embedding_model, 
+                    text_chunks=text_chunks, 
+                    top_k=TOP_K_RESULTS
+                )
+            
+            if relevant_chunks:
+                retrieved_context_for_llm = "\n\n---\n\n".join(relevant_chunks)
+                # Optional: Log or display what was retrieved for debugging
+                # st.sidebar.expander(f"Retrieved RAG Chunks for '{user_query[:30]}...'").write(relevant_chunks)
+            else:
+                retrieved_context_for_llm = "No highly relevant information found in the knowledge base for your specific query. I will answer based on general knowledge and conversation history."
+        elif rag_data_for_report is None: # Explicitly None means RAG building failed or no content
+             retrieved_context_for_llm = "RAG context was not successfully built for this report (e.g. no content or error during indexing). Answering based on general knowledge and history."
+             st.warning(f"RAG context not available or failed to build for report {report_id}. Chat accuracy might be reduced.")
+        else: # Should not happen if rag_contexts[report_id] is always set to dict or None
+            retrieved_context_for_llm = "RAG context store seems to be in an unexpected state. Answering based on general knowledge and history."
+            st.error(f"Unexpected RAG context state for report {report_id}.")
+
+        # Format conversation history
+        formatted_history = ""
+        MAX_HISTORY_TURNS = 5 
+        relevant_history = session.history[:-1] 
+        start_index = max(0, len(relevant_history) - (2 * MAX_HISTORY_TURNS))
+        for msg in relevant_history[start_index:]:
+            role_display = "User" if msg.role == "user" else "AI"
+            formatted_history += f"{role_display}: {msg.content}\n"
+
+        llm_prompt = (
+            f"You are a helpful AI assistant. You have been provided with conversation history and specific, highly relevant excerpts from a larger knowledge base (retrieved via RAG). "
+            f"Please answer the user's current question based *primarily* on these retrieved excerpts and the conversation history. "
+            f"If the retrieved excerpts are insufficient or state that no relevant information was found, you may say so or use general knowledge cautiously.\n\n"
+        )
+
+        if formatted_history:
+            llm_prompt += f"CONVERSATION HISTORY:\n---\n{formatted_history}---\n\n"
+        
+        llm_prompt += f"RETRIEVED CONTEXTUAL EXCERPTS (RAG):\n---\n{retrieved_context_for_llm}\n---\n\n"
+            
+        llm_prompt += (
+            f"USER'S CURRENT QUESTION: {user_query}\n\n"
+            f"Based on the retrieved excerpts and conversation history, YOUR ANSWER:"
+        )
+        
+        if "openrouter_client" not in st.session_state:
+             st.session_state.openrouter_client, _ = init_clients()
+
+        if st.session_state.openrouter_client:
+            chat_system_prompt = (
+                "You are an AI assistant. Answer the user's question based on the provided conversation history and the highly relevant contextual excerpts retrieved from a knowledge base."
+            )
+            
+            # --- DEBUG PRINT ADDED ---
+            model_to_use_for_llm = st.session_state.get("selected_model", OPENROUTER_PRIMARY_MODEL)
+            print(f"DEBUG: About to call LLM. Model identifier type: {type(model_to_use_for_llm)}, value: {model_to_use_for_llm}")
+            # --- END DEBUG PRINT ---
+
+            # --- CHATBOX MODEL OVERRIDE ---
+            # For chat, always use the specified chimera model, overriding user selection for report gen.
+            chat_specific_model = "tngtech/deepseek-r1t-chimera:free" # Can also use OPENROUTER_PRIMARY_MODEL if it's guaranteed to be this.
+            print(f"DEBUG: Chatbox overriding LLM to: {chat_specific_model}")
+            # --- END CHATBOX MODEL OVERRIDE ---
+
+            generated_text = await st.session_state.openrouter_client.generate_response(
+                prompt=llm_prompt,
+                system_prompt=chat_system_prompt, 
+                model_override=chat_specific_model # Use the chat-specific model
+            )
+            if generated_text:
+                ai_response_content = generated_text
+            else:
+                ai_response_content = "I received an empty response from the AI. Please try rephrasing your question."
+        else:
+            ai_response_content = "AI client not available. Cannot process question."
+
+    except Exception as e:
+        st.error(f"Error during RAG processing or LLM call: {str(e)}")
+        ai_response_content = f"Sorry, I encountered an error: {str(e)}"
+    # --- End AI Logic ---
+    
+    session.history.append(ChatHistoryItem(role="ai", content=ai_response_content))
+    st.session_state.chat_sessions_store[session.session_id] = session
+    return ai_response_content, session.session_id
+
+async def display_chat_interface_v2():
+    st.subheader("Chat with AI about this Report")
+
+    report_id = st.session_state.get("current_report_id_for_chat")
+    if not report_id:
+        st.warning("Chat cannot be initialized: No active report ID found.")
+        return
+
+    current_chat_session_id = st.session_state.get("current_chat_session_id")
+    active_session = get_or_create_chat_session(report_id, current_chat_session_id)
+    st.session_state.current_chat_session_id = active_session.session_id
+
+    for msg in active_session.history:
+        with st.chat_message(msg.role):
+            st.markdown(msg.content)
+
+    if st.session_state.get("ai_is_thinking", False):
+        with st.chat_message("assistant"):
+            st.markdown("_AI is thinking..._")
+
+    user_prompt = st.chat_input(f"Ask about report {report_id}...")
+
+    if user_prompt and not st.session_state.get("ai_is_thinking", False):
+        st.session_state.last_user_prompt_for_processing = user_prompt
+        st.session_state.ai_is_thinking = True
+        st.rerun()
+    elif st.session_state.get("ai_is_thinking", False) and "last_user_prompt_for_processing" in st.session_state:
+        prompt_to_process = st.session_state.pop("last_user_prompt_for_processing", None)
+        if prompt_to_process:
+            await handle_chat_submission(
+                user_query=prompt_to_process,
+                report_id=report_id,
+                current_session_id=active_session.session_id
+            )
+        st.session_state.ai_is_thinking = False
+        st.rerun()
+
+# --- END Chat UI / Logic Functions ---
+
 async def main():
     st.set_page_config(
-        page_title="AI Research Agent",
+        page_title="Research Agent",
         page_icon="🤖",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
+
+    # Initialize chat messages in session state if not already there
+    # This is a good place for it, or right after page_config
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+    if "report_generated_for_chat" not in st.session_state: # Flag to control chat display
+        st.session_state.report_generated_for_chat = False
+    if "current_report_id_for_chat" not in st.session_state: # To store which report is active
+        st.session_state.current_report_id_for_chat = None
+    if "chat_sessions_store" not in st.session_state: # To store all chat sessions
+        st.session_state.chat_sessions_store = {}
+    if "current_chat_session_id" not in st.session_state: # Active session ID for current report
+        st.session_state.current_chat_session_id = None
+    if "openrouter_client" not in st.session_state: # Store clients in session_state
+        st.session_state.openrouter_client, st.session_state.firecrawl_client = init_clients()
+    if "ai_is_thinking" not in st.session_state: # Changed here for initialization
+        st.session_state.ai_is_thinking = False
+    if "last_user_prompt_for_processing" not in st.session_state: 
+        st.session_state.last_user_prompt_for_processing = None
+    if "rag_contexts" not in st.session_state: # For storing RAG indexes and chunks per report
+        st.session_state.rag_contexts = {}
 
     # Initialize session state for system_prompt if not already set
     if "system_prompt" not in st.session_state:
@@ -505,7 +710,8 @@ async def main():
     # Main content area
     if st.session_state.authenticated:
         st.title("AI Research Agent")
-        openrouter_client, firecrawl_client = init_clients()
+        # Clients are now in session_state, no need to unpack here unless used directly in main's top level scope
+        # openrouter_client, firecrawl_client = st.session_state.openrouter_client, st.session_state.firecrawl_client
 
         st.header("Unified Research Interface")
 
@@ -899,7 +1105,7 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                         # Use the more descriptive scrape_source_log_message for UI feedback
                         ui_scrape_message_short = scrape_source_log_message.split('.')[0] # e.g., "X URLs selected from sitemap scan"
                         st.info(f"Starting web scraping for {len(urls_to_use_for_specific_scraping)} specific URL(s) ({ui_scrape_message_short})...")
-                        scraped_data_specific = await process_urls(urls_to_use_for_specific_scraping, firecrawl_client)
+                        scraped_data_specific = await process_urls(urls_to_use_for_specific_scraping, st.session_state.firecrawl_client)
                         st.session_state.scraped_web_content = scraped_data_specific
                     else:
                         st.info("No specific URLs (from sitemap scan or text input) to scrape.")
@@ -907,7 +1113,7 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                     # --- Stage 1b: Crawl & Scrape Site (only if no specific URLs were processed and crawl_start_url is provided) ---
                     if crawl_start_url and not urls_to_use_for_specific_scraping:
                         st.info(f"No specific URLs provided/selected. Proceeding with site crawl from {crawl_start_url}...")
-                        crawled_data = await crawl_and_scrape_site(crawl_start_url, crawl_limit, firecrawl_client)
+                        crawled_data = await crawl_and_scrape_site(crawl_start_url, crawl_limit, st.session_state.firecrawl_client)
                         st.session_state.crawled_web_content = crawled_data
                     elif crawl_start_url and urls_to_use_for_specific_scraping:
                         st.info(f"Site crawl from '{crawl_start_url}' was skipped because specific URLs were selected/provided.")
@@ -980,16 +1186,17 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                     # Ensure openrouter_client is initialized (it is, outside this button block)
                     
                     # --- DEBUGGING --- 
-                    st.write("--- DEBUG INFO BEFORE AI CALL ---")
-                    # Prepare query snippet for debugging, handling potential quotes
-                    debug_query_snippet = research_query[:50]
-                    if len(research_query) > 50:
-                        debug_query_snippet += "..."
-                    st.write(f"Research Query Provided: {'Yes' if research_query else 'No'} (Content: '{debug_query_snippet}')") # Use prepared snippet
-                    st.write(f"Combined Document Text Provided: {'Yes' if combined_document_text else 'No'} (Length: {len(combined_document_text)})")
-                    st.write(f"Combined Scraped Text Provided: {'Yes' if combined_scraped_text else 'No'} (Length: {len(combined_scraped_text)})")
-                    st.write(f"Combined Crawled Text Provided: {'Yes' if combined_crawled_text else 'No'} (Length: {len(combined_crawled_text)})")
-                    st.write("--- END DEBUG INFO ---")
+                    if st.session_state.get("role") == "admin": # Condition to show debug info only for admin
+                        st.write("--- DEBUG INFO BEFORE AI CALL (Admin Only) ---")
+                        # Prepare query snippet for debugging, handling potential quotes
+                        debug_query_snippet = research_query[:50]
+                        if len(research_query) > 50:
+                            debug_query_snippet += "..."
+                        st.write(f"Research Query Provided: {'Yes' if research_query else 'No'} (Content: '{debug_query_snippet}')") 
+                        st.write(f"Combined Document Text Provided: {'Yes' if combined_document_text else 'No'} (Length: {len(combined_document_text)})")
+                        st.write(f"Combined Scraped Text Provided: {'Yes' if combined_scraped_text else 'No'} (Length: {len(combined_scraped_text)})")
+                        st.write(f"Combined Crawled Text Provided: {'Yes' if combined_crawled_text else 'No'} (Length: {len(combined_crawled_text)})")
+                        st.write("--- END DEBUG INFO ---")
                     # --- END DEBUGGING ---
 
                     try:
@@ -999,15 +1206,63 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                         # log_audit_event(st.session_state.username, st.session_state.get('role','N/A'), "MODEL_SELECTION_USED", f"Using model: {model_to_use} for report generation.")
                         # --- End Get model ---
 
-                        ai_generated_report = await openrouter_client.generate_response(
+                        # --- DEBUG PRINT FOR MAIN REPORT ---
+                        print(f"DEBUG (Main Report): About to call LLM. Model identifier type: {type(model_to_use)}, value: {model_to_use}")
+                        # --- END DEBUG PRINT FOR MAIN REPORT ---
+
+                        ai_generated_report = await st.session_state.openrouter_client.generate_response(
                             prompt=full_prompt_for_ai, 
                             system_prompt=st.session_state.system_prompt,
-                            model_override=model_to_use # Pass selected model
+                            model_override=model_to_use # Pass selected model for main report
                         )
                         if ai_generated_report:
                             st.session_state.unified_report_content = ai_generated_report
                             st.success("AI Report generated successfully!")
                             
+                            st.session_state.report_generated_for_chat = True
+                            report_id = f"report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S%f')}"
+                            st.session_state.current_report_id_for_chat = report_id
+                            st.session_state.current_chat_session_id = None 
+
+                            # --- Build RAG Index for the new report --- 
+                            with st.spinner(f"Preparing RAG context for report {report_id}..."):
+                                embedding_model = get_embedding_model() # Uses cached model
+                                
+                                all_text_for_rag = []
+                                if st.session_state.unified_report_content:
+                                    all_text_for_rag.append(st.session_state.unified_report_content)
+                                
+                                for doc in st.session_state.get("processed_documents_content", []):
+                                    all_text_for_rag.append(f"--- Document: {doc.get('name', 'Unnamed Document')} ---\n{doc.get('text', '')}")
+                                
+                                for item in st.session_state.get("scraped_web_content", []):
+                                    if item.get("status") == "success" and item.get("content"):
+                                        all_text_for_rag.append(f"--- Web Scrape: {item.get('url', 'Unknown URL')} ---\n{item.get('content', '')}")
+                                
+                                for item in st.session_state.get("crawled_web_content", []):
+                                    if item.get("status") == "success" and item.get("content"):
+                                        all_text_for_rag.append(f"--- Web Crawl: {item.get('url', 'Unknown URL')} ---\n{item.get('content', '')}")
+                                
+                                combined_text = "\n\n---\n\n".join(all_text_for_rag)
+                                text_chunks = split_text_into_chunks(combined_text) # Uses defaults from rag_utils
+                                
+                                if text_chunks:
+                                    faiss_index = build_faiss_index(text_chunks, embedding_model)
+                                    if faiss_index:
+                                        st.session_state.rag_contexts[report_id] = {
+                                            "index": faiss_index,
+                                            "chunks": text_chunks,
+                                            "embedding_model_name": DEFAULT_EMBEDDING_MODEL # Use the imported constant
+                                        }
+                                        st.success(f"RAG context built for report {report_id} with {len(text_chunks)} chunks.")
+                                    else:
+                                        st.warning(f"Failed to build RAG index for report {report_id}. Chat may have limited context.")
+                                        st.session_state.rag_contexts[report_id] = None # Indicate failure
+                                else:
+                                    st.warning(f"No text content found to build RAG index for report {report_id}.")
+                                    st.session_state.rag_contexts[report_id] = None # Indicate failure
+                            # --- End RAG Index Building ---
+
                             successfully_scraped_urls = [item['url'] for item in st.session_state.scraped_web_content if item["status"] == "success"]
                             query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
                             success_details = f"AI report generated for query: '{query_for_log}'. Docs: {len(processed_doc_names)}. Scraped URLs: {len(successfully_scraped_urls)}."
@@ -1023,6 +1278,12 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                         else:
                             st.session_state.unified_report_content = "Failed to generate AI report. The AI returned an empty response."
                             st.error("AI report generation failed or returned empty.")
+                            
+                            # --- Additions for Chat UI (on failure) ---
+                            st.session_state.report_generated_for_chat = False
+                            st.session_state.current_report_id_for_chat = None
+                            # --- End Additions for Chat UI ---
+
                             query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
                             get_audit_logger( # Replaced log_audit_event
                                 user=st.session_state.username,
@@ -1040,6 +1301,12 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                     except Exception as e:
                         st.session_state.unified_report_content = f"An error occurred during AI report generation: {str(e)}"
                         st.error(f"Error calling AI: {e}")
+
+                        # --- Additions for Chat UI (on exception) ---
+                        st.session_state.report_generated_for_chat = False
+                        st.session_state.current_report_id_for_chat = None
+                        # --- End Additions for Chat UI ---
+
                         query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
                         get_audit_logger( # Replaced log_audit_event
                             user=st.session_state.username,
@@ -1152,6 +1419,14 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                  st.rerun() # Simple way to refresh the view by rerunning the script
         # ==== END ADMIN PANEL ====
 
+        # --- Display Chat Interface ---
+        # This should be called conditionally after a report is generated.
+        # For example, if a report is displayed using st.markdown(unified_report_markdown),
+        # then call display_chat_interface() right after it.
+
+        if st.session_state.get("report_generated_for_chat", False) and st.session_state.get("current_report_id_for_chat"):
+            await display_chat_interface_v2()
+        
     else: # Not authenticated
         st.info("Please log in or create an account to access the research pipeline.")
         # The login/signup logic from the sidebar already handles this visibility.
