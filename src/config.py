@@ -2,6 +2,11 @@ import os
 from pathlib import Path
 from typing import Literal, Dict
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file, if it exists
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Base paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,13 +27,13 @@ if not OPENROUTER_API_KEY:
     print("Warning: OPENROUTER_API_KEY is not set. API calls will fail.")
 
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-OPENROUTER_PRIMARY_MODEL = os.getenv("OPENROUTER_PRIMARY_MODEL", "tngtech/deepseek-r1t-chimera:free")
-OPENROUTER_FALLBACK_MODEL = os.getenv("OPENROUTER_FALLBACK_MODEL", "deepseek/deepseek-r1:free")
+# Set the default model for the application. This can be overridden by user selection in the UI.
+OPENROUTER_PRIMARY_MODEL = os.getenv("OPENROUTER_PRIMARY_MODEL", "qwen/qwen3-30b-a3b:free")
 
 # Application Settings
 APP_ENV = os.getenv("APP_ENV", "development")
-DEBUG = os.getenv("DEBUG", "true").lower() == "true"
-LOG_LEVEL = os.getenv("LOG_LEVEL", "debug").upper()
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Output Configuration
 OutputFormat = Literal["markdown", "docx"]

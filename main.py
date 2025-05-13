@@ -33,6 +33,9 @@ from src.config import (
     SYSTEM_PROMPT,
     OPENROUTER_PRIMARY_MODEL # Import the primary model default
 )
+# --- DEBUG PRINT 1 --- (immediately after config import)
+print(f"DEBUG (main.py top level): config.py OPENROUTER_PRIMARY_MODEL = {OPENROUTER_PRIMARY_MODEL}")
+
 from src.openrouter import OpenRouterClient
 from src.firecrawl_client import FirecrawlClient
 from src.audit_logger import get_audit_logger, AUDIT_LOG_FILE_PATH # Updated import
@@ -187,15 +190,24 @@ async def perform_web_research(query: str, client: OpenRouterClient) -> str:
 
 # --- Add Model Definitions Here ---
 # Define model choices based on user query and web search results
-MODEL_OPTIONS = {
-    "Mistral Medium 3": "mistralai/mistral-medium-3",
+_MODEL_OPTIONS_RAW = {
+    # "Mistral Medium 3": "mistralai/mistral-medium-3", # Replaced
+    "Qwen: Qwen3 30B A3B (free)": "qwen/qwen3-30b-a3b:free", # Added new model
     "Google Gemini 2.5 Pro": "google/gemini-2.5-pro-preview",
     "OpenAI o3": "openai/o3",
     "OpenAI GPT-4.1": "openai/gpt-4.1",
     "Claude 3.7 Sonnet (thinking)": "anthropic/claude-3.7-sonnet:thinking",
     "DeepSeek R1T Chimera": "tngtech/deepseek-r1t-chimera:free",
 }
-MODEL_DISPLAY_NAMES = list(MODEL_OPTIONS.keys())
+
+MODEL_OPTIONS = {}
+TEMP_MODEL_DISPLAY_NAMES = []
+for original_key, identifier in _MODEL_OPTIONS_RAW.items():
+    cleaned_key = re.sub(r'\s*\([Ff]ree\)$', '', original_key).strip()
+    MODEL_OPTIONS[cleaned_key] = identifier
+    TEMP_MODEL_DISPLAY_NAMES.append(cleaned_key)
+
+MODEL_DISPLAY_NAMES = TEMP_MODEL_DISPLAY_NAMES
 MODEL_IDENTIFIERS = list(MODEL_OPTIONS.values())
 # --- End Model Definitions ---
 
@@ -518,6 +530,8 @@ async def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    # --- DEBUG PRINT 2 --- (start of main() async function)
+    print(f"DEBUG (main() start): config.py OPENROUTER_PRIMARY_MODEL = {OPENROUTER_PRIMARY_MODEL}")
 
     # Initialize chat messages in session state if not already there
     # This is a good place for it, or right after page_config
@@ -728,19 +742,32 @@ async def main():
         # Determine the index of the currently configured primary model for default selection
         try:
             default_model_identifier = OPENROUTER_PRIMARY_MODEL # Loaded from config/env
-            default_index = MODEL_IDENTIFIERS.index(default_model_identifier)
-        except ValueError:
-            default_index = 0 # Fallback to the first model if the default isn't in our list
-            st.warning(f"Default primary model '{OPENROUTER_PRIMARY_MODEL}' not found in selectable options. Defaulting to first option.")
+            # --- DEBUG PRINT 3 --- (before determining selectbox default)
+            print(f"DEBUG (selectbox default logic): default_model_identifier for selectbox = {default_model_identifier}")
+            default_display_name_for_default_identifier = ""
+            # Find the cleaned display name that maps to the default identifier
+            for display_name, identifier_in_map in MODEL_OPTIONS.items(): 
+                if identifier_in_map == default_model_identifier:
+                    default_display_name_for_default_identifier = display_name
+                    break
+            
+            if default_display_name_for_default_identifier:
+                default_index = MODEL_DISPLAY_NAMES.index(default_display_name_for_default_identifier)
+            else: # Fallback if the identifier is not found
+                st.warning(f"Default primary model identifier '{default_model_identifier}' not found in the available MODEL_OPTIONS mapping. Defaulting to first option.")
+                default_index = 0 
+        except ValueError: # Handles if .index() fails for some reason
+            default_index = 0 
+            st.warning(f"Could not determine default index for model '{OPENROUTER_PRIMARY_MODEL}'. Defaulting to first option.")
 
         selected_model_display_name = st.selectbox(
             "Choose the AI model for report generation:",
-            options=MODEL_DISPLAY_NAMES,
+            options=MODEL_DISPLAY_NAMES, # Use the cleaned list
             index=default_index,
             key="model_selector",
             help="Select the AI model to use. Defaults are set in config/env."
         )
-        # Store the corresponding identifier in session state
+        # Store the corresponding identifier in session state using the cleaned display name for lookup
         st.session_state.selected_model = MODEL_OPTIONS[selected_model_display_name]
         st.markdown("---") # Separator
         # --- End Model Selection Section ---

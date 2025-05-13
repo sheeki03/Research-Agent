@@ -8,7 +8,6 @@ from .config import (
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
     OPENROUTER_PRIMARY_MODEL,
-    OPENROUTER_FALLBACK_MODEL,
     SYSTEM_PROMPT
 )
 
@@ -24,7 +23,6 @@ class OpenRouterClient:
         self.api_key = OPENROUTER_API_KEY
         self.base_url = OPENROUTER_BASE_URL
         self.primary_model = OPENROUTER_PRIMARY_MODEL
-        self.fallback_model = OPENROUTER_FALLBACK_MODEL
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "HTTP-Referer": "https://github.com/your-repo",  # Replace with your actual repo
@@ -88,10 +86,6 @@ class OpenRouterClient:
             # Use primary model with fallback logic
             print(f"Using primary model: {self.primary_model}")
             response_data = await self._make_request(self.primary_model, messages, temperature)
-            
-            if response_data is None and self.fallback_model:
-                print(f"Primary model {self.primary_model} failed, trying fallback model {self.fallback_model}")
-                response_data = await self._make_request(self.fallback_model, messages, temperature)
         
         # Process the response (regardless of which model was used)
         if response_data and "choices" in response_data and response_data["choices"]:
