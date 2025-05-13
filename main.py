@@ -467,41 +467,47 @@ async def handle_chat_submission(user_query: str, report_id: str, current_sessio
     return ai_response_content, session.session_id
 
 async def display_chat_interface_v2():
-    st.subheader("Chat with AI about this Report")
+    # st.subheader("Chat with AI about this Report") # Title will be in expander
 
     report_id = st.session_state.get("current_report_id_for_chat")
     if not report_id:
+        # This case should ideally not be reached if expander visibility is also tied to report_id presence
         st.warning("Chat cannot be initialized: No active report ID found.")
         return
 
-    current_chat_session_id = st.session_state.get("current_chat_session_id")
-    active_session = get_or_create_chat_session(report_id, current_chat_session_id)
-    st.session_state.current_chat_session_id = active_session.session_id
+    with st.expander("💬 Chat with AI about this Report", expanded=st.session_state.get("chat_ui_expanded", False)):
+        current_chat_session_id = st.session_state.get("current_chat_session_id")
+        active_session = get_or_create_chat_session(report_id, current_chat_session_id)
+        st.session_state.current_chat_session_id = active_session.session_id
 
-    for msg in active_session.history:
-        with st.chat_message(msg.role):
-            st.markdown(msg.content)
+        # Message display area within the expander
+        # To make it scrollable and limit height, we can wrap messages in a container with a fixed height
+        # However, st.container() itself doesn't take height. We might need custom CSS or just let it expand.
+        # For now, let it expand naturally within the expander.
+        for msg in active_session.history:
+            with st.chat_message(msg.role):
+                st.markdown(msg.content)
 
-    if st.session_state.get("ai_is_thinking", False):
-        with st.chat_message("assistant"):
-            st.markdown("_AI is thinking..._")
+        if st.session_state.get("ai_is_thinking", False):
+            with st.chat_message("assistant"):
+                st.markdown("_AI is thinking..._")
 
-    user_prompt = st.chat_input(f"Ask about report {report_id}...")
+        user_prompt = st.chat_input(f"Ask about report {report_id}...", key=f"chat_input_{report_id}") # Unique key for chat input
 
-    if user_prompt and not st.session_state.get("ai_is_thinking", False):
-        st.session_state.last_user_prompt_for_processing = user_prompt
-        st.session_state.ai_is_thinking = True
-        st.rerun()
-    elif st.session_state.get("ai_is_thinking", False) and "last_user_prompt_for_processing" in st.session_state:
-        prompt_to_process = st.session_state.pop("last_user_prompt_for_processing", None)
-        if prompt_to_process:
-            await handle_chat_submission(
-                user_query=prompt_to_process,
-                report_id=report_id,
-                current_session_id=active_session.session_id
-            )
-        st.session_state.ai_is_thinking = False
-        st.rerun()
+        if user_prompt and not st.session_state.get("ai_is_thinking", False):
+            st.session_state.last_user_prompt_for_processing = user_prompt
+            st.session_state.ai_is_thinking = True
+            st.rerun()
+        elif st.session_state.get("ai_is_thinking", False) and "last_user_prompt_for_processing" in st.session_state:
+            prompt_to_process = st.session_state.pop("last_user_prompt_for_processing", None)
+            if prompt_to_process:
+                await handle_chat_submission( 
+                    user_query=prompt_to_process,
+                    report_id=report_id,
+                    current_session_id=active_session.session_id
+                )
+            st.session_state.ai_is_thinking = False
+            st.rerun()
 
 # --- END Chat UI / Logic Functions ---
 
@@ -533,6 +539,8 @@ async def main():
         st.session_state.last_user_prompt_for_processing = None
     if "rag_contexts" not in st.session_state: # For storing RAG indexes and chunks per report
         st.session_state.rag_contexts = {}
+    if "chat_ui_expanded" not in st.session_state: # For controlling chat expander
+        st.session_state.chat_ui_expanded = False
 
     # Initialize session state for system_prompt if not already set
     if "system_prompt" not in st.session_state:
@@ -1223,6 +1231,7 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                             report_id = f"report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S%f')}"
                             st.session_state.current_report_id_for_chat = report_id
                             st.session_state.current_chat_session_id = None 
+                            st.session_state.chat_ui_expanded = False # Ensure chat is initially collapsed
 
                             # --- Build RAG Index for the new report --- 
                             with st.spinner(f"Preparing RAG context for report {report_id}..."):
@@ -1282,6 +1291,7 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                             # --- Additions for Chat UI (on failure) ---
                             st.session_state.report_generated_for_chat = False
                             st.session_state.current_report_id_for_chat = None
+                            st.session_state.chat_ui_expanded = False # Ensure chat is not shown/expanded
                             # --- End Additions for Chat UI ---
 
                             query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
@@ -1305,6 +1315,7 @@ If specific URLs are provided via sitemap selection (4a) or manual entry in sect
                         # --- Additions for Chat UI (on exception) ---
                         st.session_state.report_generated_for_chat = False
                         st.session_state.current_report_id_for_chat = None
+                        st.session_state.chat_ui_expanded = False # Ensure chat is not shown/expanded
                         # --- End Additions for Chat UI ---
 
                         query_for_log = research_query if research_query else '[SYSTEM PROMPT]'
