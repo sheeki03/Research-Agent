@@ -192,7 +192,7 @@ async def perform_web_research(query: str, client: OpenRouterClient) -> str:
 # Define model choices based on user query and web search results
 _MODEL_OPTIONS_RAW = {
     # "Mistral Medium 3": "mistralai/mistral-medium-3", # Replaced
-    "Qwen: Qwen3 30B A3B (free)": "qwen/qwen3-30b-a3b:free", # Added new model
+    "Qwen3 30B": "qwen/qwen3-30b-a3b:free", # Added new model
     "Google Gemini 2.5 Pro": "google/gemini-2.5-pro-preview",
     "OpenAI o3": "openai/o3",
     "OpenAI GPT-4.1": "openai/gpt-4.1",
